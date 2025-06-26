@@ -1,17 +1,22 @@
 package com.seyman.dreamshops.controller;
 
+import com.seyman.dreamshops.dto.CartDto;
+import com.seyman.dreamshops.dto.UserDto;
 import com.seyman.dreamshops.exceptions.ResourceNotFoundException;
 import com.seyman.dreamshops.model.Cart;
 import com.seyman.dreamshops.response.ApiResponse;
 import com.seyman.dreamshops.service.cart.ICartService;
+import com.seyman.dreamshops.service.user.IUserService;
+import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
-import org.aspectj.weaver.ast.Not;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 
 @RestController
 @RequestMapping("${api.prefix}/carts")
@@ -19,15 +24,58 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class CartController {
 
     private final ICartService cartService;
+    private final IUserService userService;
 
     @GetMapping("/{cartId}/my-cart")
     public ResponseEntity<ApiResponse> getCart(@PathVariable Long cartId) {
         try {
             Cart cart = cartService.getCart(cartId);
-
-            return ResponseEntity.ok(new ApiResponse("Success", cart));
+            CartDto cartDto = cartService.convertToDto(cart);
+            return ResponseEntity.ok(new ApiResponse("Success", cartDto));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/user/my-cart")
+    public ResponseEntity<ApiResponse> getUserCart() {
+        try {
+            UserDto user = userService.getAuthenticatedUser();
+            
+            Cart cart = cartService.getCartByUserId(user.getId());
+            
+            if (cart == null) {
+                cart = cartService.initialNewCart(userService.convertDtoToUser(user));
+            }
+            
+            CartDto cartDto = cartService.convertToDto(cart);
+            
+            return ResponseEntity.ok(new ApiResponse("Success", cartDto));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (JwtException e) {
+            return ResponseEntity.status(UNAUTHORIZED).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Unexpected error occurred", null));
+        }
+    }
+
+    @GetMapping("/user/cart")
+    public ResponseEntity<ApiResponse> getUserCartAlternative() {
+        try {
+            UserDto user = userService.getAuthenticatedUser();
+            Cart cart = cartService.getCartByUserId(user.getId());
+            
+            if (cart == null) {
+                cart = cartService.initialNewCart(userService.convertDtoToUser(user));
+            }
+
+            CartDto cartDto = cartService.convertToDto(cart);
+            return ResponseEntity.ok(new ApiResponse("Success", cartDto));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (JwtException e) {
+            return ResponseEntity.status(UNAUTHORIZED).body(new ApiResponse(e.getMessage(), null));
         }
     }
 
@@ -38,6 +86,24 @@ public class CartController {
             return ResponseEntity.ok(new ApiResponse("Clear Cart Success!", null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @DeleteMapping("/user/clear")
+    public ResponseEntity<ApiResponse> clearUserCart() {
+        try {
+            UserDto user = userService.getAuthenticatedUser();
+            Cart cart = cartService.getCartByUserId(user.getId());
+            
+            if (cart != null) {
+                cartService.clearCart(cart.getId());
+            }
+            
+            return ResponseEntity.ok(new ApiResponse("Clear Cart Success!", null));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (JwtException e) {
+            return ResponseEntity.status(UNAUTHORIZED).body(new ApiResponse(e.getMessage(), null));
         }
     }
 

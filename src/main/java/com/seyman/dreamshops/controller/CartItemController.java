@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
@@ -41,23 +42,61 @@ public class CartItemController {
         }
     }
 
-    @DeleteMapping("/cart/{cartId}/item/{itemId}/remove")
-    public ResponseEntity<ApiResponse> removeItemFromCart(@PathVariable Long cartId, @PathVariable Long itemId) {
+    @PostMapping("/cart/{cartId}/item/{productId}/add")
+    public ResponseEntity<ApiResponse> addItemToCartById(@PathVariable Long cartId, @PathVariable Long productId, @RequestParam(defaultValue = "1") Integer quantity) {
+        // Debug logs removed for production
+        
         try {
-            cartItemService.removeItemFromCart(cartId, itemId);
+            cartItemService.addItemToCart(cartId, productId, quantity);
+            // Debug logs removed for production
+            return ResponseEntity.ok(new ApiResponse("Add Item Success", null));
+        } catch (ResourceNotFoundException e) {
+            // Debug logs removed for production
+            return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            // Debug logs removed for production
+            return ResponseEntity.status(500).body(new ApiResponse("Internal server error: " + e.getMessage(), null));
+        }
+    }
+
+    @DeleteMapping("/cart/{cartId}/item/{productId}/remove")
+    public ResponseEntity<ApiResponse> removeItemFromCart(@PathVariable Long cartId, @PathVariable Long productId) {
+        try {
+            cartItemService.removeItemFromCart(cartId, productId);
             return ResponseEntity.ok(new ApiResponse("Remove Item Success", null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
         }
     }
 
-    @PutMapping("/cart/{cartId}/item/{itemId}/update")
-    public ResponseEntity<ApiResponse> updateItemQuantity(@PathVariable Long cartId, @PathVariable Long itemId, @RequestParam Integer quantity) {
+    @PutMapping("/cart/{cartId}/item/{productId}/update")
+    public ResponseEntity<ApiResponse> updateItemQuantity(@PathVariable Long cartId, @PathVariable Long productId, @RequestParam Integer quantity) {
+        // Debug logs removed for production
+        
         try {
-            cartItemService.updateItemQuantity(cartId, itemId, quantity);
-            return ResponseEntity.ok(new ApiResponse("Updatem Item Quantity Success", null));
+            cartItemService.updateItemQuantity(cartId, productId, quantity);
+            // Debug logs removed for production
+            return ResponseEntity.ok(new ApiResponse("Update Item Quantity Success", null));
         } catch (ResourceNotFoundException e) {
+            // Debug logs removed for production
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            // Debug logs removed for production
+            return ResponseEntity.status(500).body(new ApiResponse("Internal server error", null));
+        }
+    }
+
+    @PostMapping("/item")
+    public ResponseEntity<ApiResponse> addItemToCart(@RequestParam Long cartId,
+                                                   @RequestParam Long productId,
+                                                   @RequestParam int quantity) {
+        try {
+            cartItemService.addItemToCart(cartId, productId, quantity);
+            return ResponseEntity.ok(new ApiResponse("Add Item Success", null));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND).body(new ApiResponse("Resource not found", null));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Unexpected error occurred", null));
         }
     }
 }

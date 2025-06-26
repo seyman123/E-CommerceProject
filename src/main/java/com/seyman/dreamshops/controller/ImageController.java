@@ -6,6 +6,7 @@ import com.seyman.dreamshops.exceptions.ResourceNotFoundException;
 import com.seyman.dreamshops.model.Image;
 import com.seyman.dreamshops.response.ApiResponse;
 import com.seyman.dreamshops.service.image.IImageService;
+import com.seyman.dreamshops.service.image.EnhancedImageService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
@@ -29,25 +30,64 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @RequestMapping("${api.prefix}/images")
 public class ImageController {
     private final IImageService imageService;
+    private final EnhancedImageService enhancedImageService;
 
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse> saveImages(@RequestParam List<MultipartFile> files, @RequestParam Long productId) {
         try {
-            List<ImageDto> imageDtos = imageService.saveImages(files, productId);
-            return ResponseEntity.ok(new ApiResponse("Upload success!", imageDtos));
+            List<ImageDto> imageDtos = enhancedImageService.saveOptimizedImages(files, productId);
+            return ResponseEntity.ok(new ApiResponse("Optimized upload success! 🚀", imageDtos));
         } catch (Exception e) {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Upload failed!", e.getMessage()));
         }
     }
 
-    @GetMapping("/image/download/{imageId}")
-    public ResponseEntity<Resource> downloadImage(@PathVariable Long imageId) throws SQLException {
-        Image image = imageService.getImageById(imageId);
-        ByteArrayResource resource = new ByteArrayResource(image.getImage().getBytes(1, (int) image.getImage().length()));
+    @PostMapping("/upload-optimized")
+    public ResponseEntity<ApiResponse> saveOptimizedImages(@RequestParam List<MultipartFile> files, @RequestParam Long productId) {
+        try {
+            List<ImageDto> imageDtos = enhancedImageService.saveOptimizedImages(files, productId);
+            return ResponseEntity.ok(new ApiResponse("Optimized upload success!", imageDtos));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Optimized upload failed!", e.getMessage()));
+        }
+    }
 
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.getFileType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename =\"" + image.getFileName() + "\"")
-                .body(resource);
+    @GetMapping("/image/{imageId}")
+    public ResponseEntity<byte[]> getImage(@PathVariable Long imageId) {
+        try {
+            Image image = imageService.getImageById(imageId);
+            byte[] imageData = image.getImage().getBytes(1, (int) image.getImage().length());
+            
+            return ResponseEntity.ok()
+                    .contentType(MediaType.valueOf(image.getFileType()))
+                    .contentLength(imageData.length)
+                    .body(imageData);
+                    
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/image/download/{imageId}")
+    public ResponseEntity<byte[]> getImageLegacy(@PathVariable Long imageId) {
+        try {
+            Image image = imageService.getImageById(imageId);
+            byte[] imageData = image.getImage().getBytes(1, (int) image.getImage().length());
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(image.getFileType()));
+            headers.setContentLength(imageData.length);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(imageData);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(NOT_FOUND).build();
+        } catch (SQLException e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PutMapping("/image/{imageId}/update")
@@ -78,6 +118,46 @@ public class ImageController {
         }
 
         return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Delete failed!", INTERNAL_SERVER_ERROR));
+    }
+
+    // Temporary public endpoint for URL migration - remove after migration is complete
+    @PostMapping("/migrate-urls")
+    public ResponseEntity<ApiResponse> migrateImageUrls() {
+        try {
+            int updatedCount = imageService.migrateImageUrls();
+            return ResponseEntity.ok(new ApiResponse("URL migration completed!", "Updated " + updatedCount + " image URLs"));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("Migration failed!", e.getMessage()));
+        }
+    }
+
+    // Test endpoint to serve a simple image
+    @GetMapping("/test-image")
+    public ResponseEntity<byte[]> getTestImage() {
+        try {
+            // Create a simple 1x1 pixel PNG image
+            byte[] imageData = new byte[]{
+                (byte)0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+                0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+                0x08, 0x02, 0x00, 0x00, 0x00, (byte)0x90, (byte)0x77, 0x53, (byte)0xDE,
+                0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54,
+                0x08, (byte)0xD7, 0x63, (byte)0xF8, (byte)0x0F, 0x00, 0x00, 0x01,
+                0x00, 0x01, (byte)0x9A, 0x6C, (byte)0xCE, (byte)0x8E, 0x00, 0x00, 0x00, 0x00,
+                0x49, 0x45, 0x4E, 0x44, (byte)0xAE, 0x42, 0x60, (byte)0x82
+            };
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.IMAGE_PNG);
+            headers.setContentLength(imageData.length);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(imageData);
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).build();
+        }
     }
 
 }

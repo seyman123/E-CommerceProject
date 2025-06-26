@@ -10,39 +10,85 @@ import com.seyman.dreamshops.model.Product;
 import com.seyman.dreamshops.repository.CategoryRepository;
 import com.seyman.dreamshops.repository.ImageRepository;
 import com.seyman.dreamshops.repository.ProductRepository;
+import com.seyman.dreamshops.repository.CartItemRepository;
+import com.seyman.dreamshops.repository.OrderItemRepository;
 import com.seyman.dreamshops.requests.AddProductRequest;
 import com.seyman.dreamshops.requests.ProductUpdateRequest;
+import com.seyman.dreamshops.service.cache.CacheService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProductService implements IProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ImageRepository imageRepository;
+    private final CartItemRepository cartItemRepository;
+    private final OrderItemRepository orderItemRepository;
     private final ModelMapper modelMapper;
+    private final CacheService cacheService;
 
     @Override
     public Product addProduct(AddProductRequest request) {
-
         if (this.productExists(request.getBrand(), request.getName())) {
             throw new AlreadyExistsException(request.getBrand() + " " + request.getName() + " already exists, you may update this product instead!");
         }
 
-        //requestten gelen bir kategori mevcutsa onu alır. Mevcut değilse yeni kategori olusturup kaydeder.
-        Category category = Optional.ofNullable(categoryRepository.findByName(request.getCategory().getName()))
-                .orElseGet(() -> {
-                    Category newCategory = new Category(request.getCategory().getName());
-                    return categoryRepository.save(newCategory);
-                });
+        Category category = null;
+        
+        // Önce kategori ID'si ile kontrol et
+        if (request.getCategory() != null && request.getCategory().getId() != null) {
+            category = categoryRepository.findById(request.getCategory().getId()).orElse(null);
+        }
+        
+        // ID ile bulunamazsa veya ID yoksa name ile kontrol et
+        if (category == null && request.getCategory() != null && request.getCategory().getName() != null) {
+            // findByName birden fazla sonuç döndürebileceği için try-catch kullan
+            try {
+                category = categoryRepository.findByName(request.getCategory().getName());
+            } catch (Exception e) {
+                // Birden fazla sonuç varsa, existsByName ile kontrol edip yeni oluşturma
+                if (!categoryRepository.existsByName(request.getCategory().getName())) {
+                    category = new Category(request.getCategory().getName());
+                    category = categoryRepository.save(category);
+                } else {
+                    // Aynı isimde kategoriler varsa, ilkini al
+                    category = categoryRepository.findAll().stream()
+                        .filter(c -> c.getName().equals(request.getCategory().getName()))
+                        .findFirst()
+                        .orElse(null);
+                }
+            }
+        }
+        
+        // Hala kategori bulunamazsa yeni oluştur
+        if (category == null && request.getCategory() != null && request.getCategory().getName() != null) {
+            category = new Category(request.getCategory().getName());
+            category = categoryRepository.save(category);
+        }
+        
         request.setCategory(category);
-        return productRepository.save(createProduct(request, category));
+        Product newProduct = productRepository.save(createProduct(request, category));
+        
+        // Clear caches when new product is added
+        clearProductCaches();
+        log.info("New product added and caches cleared: {}", newProduct.getName());
+        
+        return newProduct;
     }
 
     private boolean productExists(String brand, String name) {
@@ -68,19 +114,43 @@ public class ProductService implements IProductService {
 
     @Override
     public void deleteProductById(Long id) {
-        productRepository.findById(id)
-                .ifPresentOrElse(productRepository::delete,
-                        () -> {
-                            throw new ProductNotFoundException("Product Not Found!");
-                        });
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException("Product Not Found!"));
+        
+        // 1. Sipariş geçmişinde bu ürün varsa silmeye izin verme
+        if (orderItemRepository.existsByProductId(id)) {
+            throw new IllegalStateException("Cannot delete product that has been ordered. Product is part of order history.");
+        }
+        
+        // 2. Ürüne ait sepet öğelerini sil (sepet öğeleri geçici olduğu için silinebilir)
+        cartItemRepository.deleteAllByProductId(id);
+        
+        // 3. Ürüne ait resimleri sil
+        List<Image> images = imageRepository.findByProductId(id);
+        if (!images.isEmpty()) {
+            imageRepository.deleteAll(images);
+        }
+        
+        // 4. Son olarak ürünü sil
+        productRepository.delete(product);
+        
+        // 5. Clear related caches
+        clearProductCaches();
+        log.info("Product deleted and caches cleared for product ID: {}", id);
     }
 
     @Override
     public Product updateProduct(ProductUpdateRequest request, Long productId) {
-        return productRepository.findById(productId)
+        Product updatedProduct = productRepository.findById(productId)
                 .map(existingProduct -> updateExistingProduct(existingProduct, request))
                 .map(productRepository::save)
                 .orElseThrow(() -> new ProductNotFoundException("not found"));
+        
+        // Clear related caches
+        clearProductCaches();
+        log.info("Product updated and caches cleared for product ID: {}", productId);
+        
+        return updatedProduct;
     }
 
     private Product updateExistingProduct(Product existingProduct, ProductUpdateRequest request) {
@@ -90,7 +160,25 @@ public class ProductService implements IProductService {
         existingProduct.setDescription(request.getDescription());
         existingProduct.setInventory(request.getInventory());
 
-        Category category = categoryRepository.findByName(request.getCategory().getName());
+        Category category = null;
+        
+        // Önce kategori ID'si ile kontrol et
+        if (request.getCategory() != null && request.getCategory().getId() != null) {
+            category = categoryRepository.findById(request.getCategory().getId()).orElse(null);
+        }
+        
+        // ID ile bulunamazsa veya ID yoksa name ile kontrol et
+        if (category == null && request.getCategory() != null && request.getCategory().getName() != null) {
+            try {
+                category = categoryRepository.findByName(request.getCategory().getName());
+            } catch (Exception e) {
+                // Birden fazla sonuç varsa, ilkini al
+                category = categoryRepository.findAll().stream()
+                    .filter(c -> c.getName().equals(request.getCategory().getName()))
+                    .findFirst()
+                    .orElse(null);
+            }
+        }
 
         existingProduct.setCategory(category);
 
@@ -99,12 +187,56 @@ public class ProductService implements IProductService {
 
     @Override
     public List<Product> getAllProducts() {
-        return productRepository.findAll();
+        String cacheKey = "products:all";
+        
+        // Try to get from cache first (with proper casting)
+        try {
+            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
+            if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+                log.info("Cache HIT for getAllProducts");
+                return cachedProducts;
+            }
+        } catch (Exception e) {
+            log.warn("Cache get failed, falling back to database: {}", e.getMessage());
+        }
+        
+        // Cache miss - get from database
+        log.info("Cache MISS for getAllProducts - fetching from database");
+        List<Product> products = productRepository.findAll();
+        
+        // Cache the result for 30 minutes
+        cacheService.put(cacheKey, products, Duration.ofMinutes(30));
+        
+        return products;
     }
 
     @Override
     public List<Product> getProductsByCategory(String category) {
-        return productRepository.findByCategoryName(category);
+        String cacheKey = "products:category:" + category;
+        
+        // Try cache first (with proper casting)
+        try {
+            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
+            if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+                log.info("Cache HIT for getProductsByCategory: {}", category);
+                return cachedProducts;
+            }
+        } catch (Exception e) {
+            log.warn("Cache get failed for category {}, falling back to database: {}", category, e.getMessage());
+        }
+        
+        // Cache miss - get from database
+        log.info("Cache MISS for getProductsByCategory: {} - fetching from database", category);
+        List<Product> products = productRepository.findByCategoryName(category);
+        
+        // Cache for 30 minutes
+        cacheService.put(cacheKey, products, Duration.ofMinutes(30));
+        
+        return products;
     }
 
     @Override
@@ -120,6 +252,60 @@ public class ProductService implements IProductService {
     @Override
     public List<Product> getProductsByName(String name) {
         return productRepository.findByName(name);
+    }
+
+    @Override
+    public List<Product> getProductsByNameContaining(String name) {
+        String cacheKey = "products:search:" + name.toLowerCase();
+        
+        // Try cache first (with proper casting)
+        try {
+            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
+            if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+                log.info("Cache HIT for search: {}", name);
+                return cachedProducts;
+            }
+        } catch (Exception e) {
+            log.warn("Cache get failed for search {}, falling back to database: {}", name, e.getMessage());
+        }
+        
+        // Cache miss - get from database
+        log.info("Cache MISS for search: {} - fetching from database", name);
+        List<Product> products = productRepository.findByNameContaining(name);
+        
+        // Cache search results for 15 minutes
+        cacheService.put(cacheKey, products, Duration.ofMinutes(15));
+        
+        return products;
+    }
+
+    @Override
+    public List<Product> getProductsByCategoryAndNameContaining(String category, String search) {
+        String cacheKey = "products:category_search:" + category.toLowerCase() + ":" + search.toLowerCase();
+        
+        // Try cache first (with proper casting)
+        try {
+            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
+            if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+                log.info("Cache HIT for category search: {} - {}", category, search);
+                return cachedProducts;
+            }
+        } catch (Exception e) {
+            log.warn("Cache get failed for category search {}-{}, falling back to database: {}", category, search, e.getMessage());
+        }
+        
+        // Cache miss - get from database
+        log.info("Cache MISS for category search: {} - {} - fetching from database", category, search);
+        List<Product> products = productRepository.findByCategoryNameAndNameContaining(category, search);
+        
+        // Cache search results for 15 minutes
+        cacheService.put(cacheKey, products, Duration.ofMinutes(15));
+        
+        return products;
     }
 
     @Override
@@ -140,11 +326,96 @@ public class ProductService implements IProductService {
     public ProductDto convertToDto(Product product) {
         ProductDto productDto = modelMapper.map(product, ProductDto.class);
         List<Image> images = imageRepository.findByProductId(product.getId());
+        
+        // Debug logging
+        // Debug logs removed for production
+        
         List<ImageDto> imageDtos = images.stream()
                 .map(image -> modelMapper.map(image, ImageDto.class))
                 .toList();
         productDto.setImages(imageDtos);
 
+        // Set calculated fields for discounts
+        productDto.setEffectivePrice(product.getEffectivePrice());
+        productDto.setSavings(product.getSavings());
+        productDto.setCurrentlyOnSale(product.isCurrentlyOnSale());
+
         return productDto;
+    }
+
+    // Sale-related methods implementation
+    @Override
+    public List<Product> getProductsOnSale() {
+        return productRepository.findByIsOnSaleTrueOrderBySaleStartDateDesc();
+    }
+
+    @Override
+    public List<Product> getFlashSaleProducts() {
+        return productRepository.findByIsFlashSaleTrueOrderBySaleStartDateDesc();
+    }
+
+    @Override
+    public List<Product> getProductsOnSaleByCategory(String category) {
+        return productRepository.findByIsOnSaleTrueAndCategoryNameOrderBySaleStartDateDesc(category);
+    }
+
+    @Override
+    public void putProductOnSale(Long productId, ProductUpdateRequest saleRequest) {
+        Product product = getProductById(productId);
+        
+        product.setIsOnSale(true);
+        product.setDiscountPrice(saleRequest.getDiscountPrice());
+        product.setDiscountPercentage(saleRequest.getDiscountPercentage());
+        product.setSaleStartDate(saleRequest.getSaleStartDate());
+        product.setSaleEndDate(saleRequest.getSaleEndDate());
+        product.setIsFlashSale(saleRequest.getIsFlashSale());
+        product.setFlashSaleStock(saleRequest.getFlashSaleStock());
+        
+        productRepository.save(product);
+    }
+
+    @Override
+    public void removeProductFromSale(Long productId) {
+        Product product = getProductById(productId);
+        
+        product.setIsOnSale(false);
+        product.setDiscountPrice(null);
+        product.setDiscountPercentage(null);
+        product.setSaleStartDate(null);
+        product.setSaleEndDate(null);
+        product.setIsFlashSale(false);
+        product.setFlashSaleStock(null);
+        
+        productRepository.save(product);
+    }
+
+    // Paginated methods implementation
+    @Override
+    public Page<Product> getAllProducts(Pageable pageable) {
+        return productRepository.findAll(pageable);
+    }
+
+    @Override
+    public Page<Product> getProductsByCategory(String category, Pageable pageable) {
+        return productRepository.findByCategoryName(category, pageable);
+    }
+
+    @Override
+    public Page<Product> getProductsByNameContaining(String search, Pageable pageable) {
+        return productRepository.findByNameContainingIgnoreCase(search, pageable);
+    }
+
+    @Override
+    public Page<Product> getProductsByCategoryAndNameContaining(String category, String search, Pageable pageable) {
+        return productRepository.findByCategoryNameAndNameContainingIgnoreCase(category, search, pageable);
+    }
+
+    private void clearProductCaches() {
+        try {
+            cacheService.evictPattern("products");
+            log.info("All product caches cleared");
+        } catch (Exception e) {
+            log.warn("Failed to clear product caches: {}", e.getMessage());
+        }
     }
 }

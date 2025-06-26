@@ -6,6 +6,7 @@ import com.seyman.dreamshops.exceptions.ResourceNotFoundException;
 import com.seyman.dreamshops.model.User;
 import com.seyman.dreamshops.repository.UserRepository;
 import com.seyman.dreamshops.requests.CreateUserRequest;
+import com.seyman.dreamshops.requests.PasswordChangeRequest;
 import com.seyman.dreamshops.requests.UserUpdateRequest;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -49,6 +50,14 @@ public class UserService implements IUserService{
         return userRepository.findById(userId).map(existingUser -> {
             existingUser.setFirstName(request.getFirstName());
             existingUser.setLastName(request.getLastName());
+            existingUser.setPhone(request.getPhone());
+            existingUser.setDateOfBirth(request.getDateOfBirth());
+            if (request.getEmail() != null && !request.getEmail().equals(existingUser.getEmail())) {
+                if (userRepository.existsByEmail(request.getEmail())) {
+                    throw new AlreadyExistsException("Email already exists: " + request.getEmail());
+                }
+                existingUser.setEmail(request.getEmail());
+            }
             return userRepository.save(existingUser);
         }).map(this::convertUserToDto)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
@@ -59,6 +68,19 @@ public class UserService implements IUserService{
         userRepository.findById(userId).ifPresentOrElse(userRepository :: delete, () -> {
             throw new ResourceNotFoundException("User not found!");
         });
+    }
+
+    @Override
+    public void changePassword(PasswordChangeRequest request, Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
+        
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+        
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
     }
 
     @Override

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -33,59 +34,77 @@ public class CartItemService implements ICartItemService {
 
     @Override
     public void addItemToCart(Long cartId, Long productId, int quantity) {
+        // Debug logs removed for production
+        
         //1 -> Sepeti al
-        //2 -> Ürünü al
-        //3 -> Ürünün sepette olup olmadığını kontrol et
-        //4 -> Eğer varsa, miktarı arttır
-        //5 -> Eğer yoksa, yeni bir cartItem oluştur
-        Cart cart = cartService.getCart(cartId);
-        Product product = productService.getProductById(productId);
-
-        CartItem cartItem = cart.getItems().stream()
-                .filter(item -> item.getProduct().getId().equals(productId))
-                .findFirst()
-                .orElse(new CartItem());
-
-        if (cartItem.getId() == null) {
-            cartItem.setCart(cart);
-            cartItem.setProduct(product);
-            cartItem.setQuantity(quantity);
-            cartItem.setUnitPrice(product.getPrice());
-        } else {
-            cartItem.setQuantity(cartItem.getQuantity() + quantity);
+        try {
+            Cart cart = cartService.getCart(cartId);
+            
+            Product product = productService.getProductById(productId);
+            
+            CartItem cartItem = cartItemRepository.findByCartAndProduct(cart, product);
+            
+            // Eğer item zaten sepette varsa quantity arttır
+            if (cartItem != null) {
+                cartItem.setQuantity(cartItem.getQuantity() + quantity);
+            } else {
+                // Yeni item oluştur
+                cartItem = new CartItem();
+                cartItem.setCart(cart);
+                cartItem.setProduct(product);
+                cartItem.setQuantity(quantity);
+                cartItem.setUnitPrice(product.getPrice());
+            }
+            
+            cartItem.setTotalPrice();
+            cartItemRepository.save(cartItem);
+            
+            // Debug logs removed for production
+        } catch (Exception e) {
+            // Debug logs removed for production
+            throw new RuntimeException("Sepete ürün eklenirken hata oluştu: " + e.getMessage());
         }
-
-        cartItem.setTotalPrice();
-        cart.addItem(cartItem);
-        cartItemRepository.save(cartItem);
-        cartRepository.save(cart);
     }
 
     @Override
     public void removeItemFromCart(Long cartId, Long productId) {
         Cart cart = cartService.getCart(cartId);
-        CartItem itemToRemove = this.getCartItem(cartId, productId);
-        cart.removeItem(itemToRemove);
-        cartRepository.save(cart);
+        Product product = productService.getProductById(productId);
+        CartItem cartItem = cartItemRepository.findByCartAndProduct(cart, product);
+        
+        if (cartItem != null) {
+            cartItemRepository.delete(cartItem);
+        }
     }
 
     @Override
     public void updateItemQuantity(Long cartId, Long productId, int quantity) {
-        Cart cart = cartService.getCart(cartId);
-
-        cart.getItems().stream().filter(item -> item.getProduct().getId().equals(productId))
-                .findFirst()
-                .ifPresent(item -> {
-                    item.setQuantity(quantity);
-                    item.setUnitPrice(item.getProduct().getPrice());
-                    item.setTotalPrice();
-                });
-
-        BigDecimal totalAmount = cart.getItems().stream()
-                .map(CartItem::getTotalPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        cart.setTotalAmount(totalAmount);
-        cartRepository.save(cart);
+        // Debug logs removed for production
+        
+        try {
+            Cart cart = cartService.getCart(cartId);
+            // Debug logs removed for production
+            
+            Optional<CartItem> optionalItem = cart.getItems().stream()
+                .filter(item -> item.getProduct().getId().equals(productId))
+                .findFirst();
+            
+            if (optionalItem.isPresent()) {
+                CartItem item = optionalItem.get();
+                // Debug logs removed for production
+                item.setQuantity(quantity);
+                item.setTotalPrice();
+                // Debug logs removed for production
+            } else {
+                // Debug logs removed for production
+                throw new ResourceNotFoundException("Ürün sepette bulunamadı!");
+            }
+            
+            // Sepeti kaydet
+            cartRepository.save(cart);
+            // Debug logs removed for production
+        } catch (Exception e) {
+            throw new RuntimeException("Miktar güncellenirken hata oluştu: " + e.getMessage());
+        }
     }
 }

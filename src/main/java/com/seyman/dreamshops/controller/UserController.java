@@ -5,9 +5,11 @@ import com.seyman.dreamshops.exceptions.AlreadyExistsException;
 import com.seyman.dreamshops.exceptions.ResourceNotFoundException;
 import com.seyman.dreamshops.model.User;
 import com.seyman.dreamshops.requests.CreateUserRequest;
+import com.seyman.dreamshops.requests.PasswordChangeRequest;
 import com.seyman.dreamshops.requests.UserUpdateRequest;
 import com.seyman.dreamshops.response.ApiResponse;
 import com.seyman.dreamshops.service.user.IUserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +33,7 @@ public class UserController {
     }
 
     @PostMapping("/add/user")
-    public ResponseEntity<ApiResponse> createUser(@RequestBody CreateUserRequest request) {
+    public ResponseEntity<ApiResponse> createUser(@RequestBody @Valid CreateUserRequest request) {
         try {
             UserDto user = userService.createUser(request);
             return ResponseEntity.ok(new ApiResponse("Create User Success!", user));
@@ -47,6 +49,20 @@ public class UserController {
             return ResponseEntity.ok(new ApiResponse("Update User Success!", updatedUser));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (AlreadyExistsException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @PutMapping("/{userId}/change-password")
+    public ResponseEntity<ApiResponse> changePassword(@RequestBody PasswordChangeRequest request, @PathVariable Long userId) {
+        try {
+            userService.changePassword(request, userId);
+            return ResponseEntity.ok(new ApiResponse("Password changed successfully!", null));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse(e.getMessage(), null));
         }
     }
 

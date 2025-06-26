@@ -52,13 +52,16 @@ public class ImageService implements IImageService {
                 image.setImage(new SerialBlob(file.getBytes()));
                 image.setProduct(product);
 
-                String buildDownloadUrl = "/api/v1/images/image/download/";
-                String downloadUrl = buildDownloadUrl + image.getId();
-                image.setDownloadUrl(downloadUrl);
+                // First save without URL to get the ID
                 Image savedImage = imageRepository.save(image);
 
-                savedImage.setDownloadUrl(buildDownloadUrl + savedImage.getId());
-                imageRepository.save(savedImage);
+                // Now set the correct URL with the actual ID (relative path without /api/v1 prefix)
+                String buildDownloadUrl = "/images/image/";
+                String downloadUrl = buildDownloadUrl + savedImage.getId();
+                savedImage.setDownloadUrl(downloadUrl);
+                
+                // Save again with the correct URL
+                savedImage = imageRepository.save(savedImage);
 
                 ImageDto imageDto = new ImageDto();
                 imageDto.setId(savedImage.getId());
@@ -86,5 +89,24 @@ public class ImageService implements IImageService {
         } catch (IOException | SQLException e) {
             throw new RuntimeException(e.getMessage());
         }
+    }
+
+    @Override
+    public int migrateImageUrls() {
+        List<Image> allImages = imageRepository.findAll();
+        int updatedCount = 0;
+        
+        for (Image image : allImages) {
+            String currentUrl = image.getDownloadUrl();
+            if (currentUrl != null && (currentUrl.contains("/download/") || currentUrl.startsWith("/api/v1/"))) {
+                // Update old format URLs to new format (relative path without /api/v1 prefix)
+                String newUrl = "/images/image/" + image.getId();
+                image.setDownloadUrl(newUrl);
+                imageRepository.save(image);
+                updatedCount++;
+            }
+        }
+        
+        return updatedCount;
     }
 }

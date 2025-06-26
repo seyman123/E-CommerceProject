@@ -4,6 +4,7 @@ import com.seyman.dreamshops.security.jwt.AuthTokenFilter;
 import com.seyman.dreamshops.security.jwt.JwtAuthEntryPoint;
 import com.seyman.dreamshops.security.jwt.JwtUtils;
 import com.seyman.dreamshops.security.user.ShopUserDetailsService;
+import org.springframework.web.cors.CorsConfigurationSource;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +33,7 @@ public class ShopConfig {
     private final JwtUtils jwtUtils;
     private final ShopUserDetailsService userDetailsService;
     private final JwtAuthEntryPoint authEntryPoint;
+    private final CorsConfigurationSource corsConfigurationSource;
 
     private static final List<String> SECURED_URLS = List.of("/api/v1/carts/**", "/api/v1/cartItems/**");
 
@@ -66,6 +68,7 @@ public class ShopConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.requestMatchers(SECURED_URLS.toArray(String[]::new)).authenticated()

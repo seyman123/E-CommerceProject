@@ -62,4 +62,21 @@ public class JwtUtils {
                 throw new JwtException(e.getMessage());
             }
         }
+
+        public String getTokenFromRequest(jakarta.servlet.http.HttpServletRequest request) {
+            String bearerToken = request.getHeader("Authorization");
+            if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+                return bearerToken.substring(7);
+            }
+            return null;
+        }
+
+        public Long getUserIdFromToken(String token) {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(key())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            return Long.valueOf(claims.get("id").toString());
+        }
 }

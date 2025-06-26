@@ -168,4 +168,72 @@ public class ProductController {
             return ResponseEntity.ok(new ApiResponse(e.getMessage(), null));
         }
     }
+
+    @GetMapping("/search/{searchTerm}")
+    public ResponseEntity<ApiResponse> searchProducts(@PathVariable String searchTerm) {
+        try {
+            List<Product> products = productService.getProductsByNameContaining(searchTerm);
+            if (products.isEmpty()) {
+                return ResponseEntity.status(NOT_FOUND).body(new ApiResponse("No products found!", null));
+            }
+            List<ProductDto> productDtos = productService.getConvertedProducts(products);
+            return ResponseEntity.ok(new ApiResponse("Products found through search!", productDtos));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/search/by-category-and-name")
+    public ResponseEntity<ApiResponse> searchProductsByCategoryAndName(
+            @RequestParam String category, 
+            @RequestParam String productName) {
+        try {
+            List<Product> products = productService.getProductsByCategoryAndNameContaining(category, productName);
+            if (products.isEmpty()) {
+                return ResponseEntity.status(NOT_FOUND).body(new ApiResponse("No products found!", null));
+            }
+            List<ProductDto> productDtos = productService.getConvertedProducts(products);
+            return ResponseEntity.ok(new ApiResponse("Products found through category and name search!", productDtos));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/search/paginated")
+    public ResponseEntity<ApiResponse> searchProductsPaginated(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            org.springframework.data.domain.Pageable pageable = 
+                org.springframework.data.domain.PageRequest.of(page, size);
+            
+            org.springframework.data.domain.Page<Product> productPage;
+            
+            if (category != null && !category.trim().isEmpty() && search != null && !search.trim().isEmpty()) {
+                productPage = productService.getProductsByCategoryAndNameContaining(category, search, pageable);
+            } else if (search != null && !search.trim().isEmpty()) {
+                productPage = productService.getProductsByNameContaining(search, pageable);
+            } else if (category != null && !category.trim().isEmpty()) {
+                productPage = productService.getProductsByCategory(category, pageable);
+            } else {
+                productPage = productService.getAllProducts(pageable);
+            }
+            
+            List<ProductDto> productDtos = productService.getConvertedProducts(productPage.getContent());
+            
+            java.util.Map<String, Object> response = new java.util.HashMap<>();
+            response.put("products", productDtos);
+            response.put("totalElements", productPage.getTotalElements());
+            response.put("totalPages", productPage.getTotalPages());
+            response.put("currentPage", productPage.getNumber());
+            response.put("pageSize", productPage.getSize());
+            
+            return ResponseEntity.ok(new ApiResponse("Products found!", response));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
 }
+

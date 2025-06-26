@@ -1,5 +1,6 @@
 package com.seyman.dreamshops.service.cart;
 
+import com.seyman.dreamshops.dto.CartDto;
 import com.seyman.dreamshops.model.Cart;
 import com.seyman.dreamshops.model.User;
 
@@ -13,4 +14,6 @@ public interface ICartService {
     Cart initialNewCart(User user);
 
     Cart getCartByUserId(Long userId);
+    
+    CartDto convertToDto(Cart cart);
 }

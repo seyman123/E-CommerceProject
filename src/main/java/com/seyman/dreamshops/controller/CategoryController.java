@@ -64,9 +64,13 @@ public class CategoryController {
     public ResponseEntity<ApiResponse> deleteCategoryById(@PathVariable Long id) {
         try {
             categoryService.deleteCategoryById(id);
-            return ResponseEntity.ok(new ApiResponse("Deleted!", null));
+            return ResponseEntity.ok(new ApiResponse("Kategori başarıyla silindi!", null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            return ResponseEntity.status(CONFLICT).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Kategori silinirken bir hata oluştu: " + e.getMessage(), null));
         }
     }
 

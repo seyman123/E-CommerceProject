@@ -4,7 +4,9 @@ import com.seyman.dreamshops.exceptions.AlreadyExistsException;
 import com.seyman.dreamshops.exceptions.ResourceNotFoundException;
 import com.seyman.dreamshops.model.Category;
 import com.seyman.dreamshops.repository.CategoryRepository;
+import com.seyman.dreamshops.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,6 +17,7 @@ import java.util.Optional;
 public class CategoryService implements ICategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
 
     @Override
     public Category addCategory(Category category) {
@@ -48,11 +51,19 @@ public class CategoryService implements ICategoryService {
 
     @Override
     public void deleteCategoryById(Long id) {
-        categoryRepository.findById(id)
-                .ifPresentOrElse(categoryRepository::delete,
-                        () -> {
-                            throw new ResourceNotFoundException("Category not found!");
-                        });
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found!"));
+        
+        // Kategoriye ait ürün olup olmadığını kontrol et
+        if (productRepository.existsByCategoryId(id)) {
+            Long productCount = productRepository.countByCategoryId(id);
+            throw new DataIntegrityViolationException(
+                "Bu kategori silinemez! Kategoriye ait " + productCount + " ürün bulunmaktadır. " +
+                "Önce bu ürünleri silin veya başka bir kategoriye taşıyın."
+            );
+        }
+        
+        categoryRepository.delete(category);
     }
 
     @Override
