@@ -18,10 +18,10 @@ import java.util.List;
 @Component
 public class JwtUtils {
 
-    @Value("${auth.token.jwtSecret}")
+    @Value("${jwt.secret}")
     private String jtwSecret;
 
-    @Value("${auth.token.expirationInMils}")
+    @Value("${jwt.expiration}")
     private int expirationTime;
 
     public String generateTokenForUser(Authentication authentication) {
