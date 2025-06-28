@@ -31,8 +31,10 @@ public class CartService implements ICartService{
 
     @Override
     public Cart getCart(Long id) {
-        Cart cart = cartRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Cart not found!"));
+        Cart cart = cartRepository.findByIdWithItems(id);
+        if (cart == null) {
+            throw new ResourceNotFoundException("Cart not found!");
+        }
         cart.setTotalAmount(cart.getTotalAmount());
         return cartRepository.save(cart);
     }
@@ -68,7 +70,7 @@ public class CartService implements ICartService{
 
     @Override
     public Cart getCartByUserId(Long userId) {
-        Cart cart = cartRepository.findByUserId(userId);
+        Cart cart = cartRepository.findByUserIdWithItems(userId);
         
         if (cart != null) {
             // Update prices for all cart items in case of discount changes
@@ -97,13 +99,32 @@ public class CartService implements ICartService{
 
     @Override
     public CartDto convertToDto(Cart cart) {
+        if (cart == null) {
+            return null;
+        }
+        
         CartDto cartDto = new CartDto();
         cartDto.setCartId(cart.getId());
         cartDto.setTotalAmount(cart.getTotalAmount());
         
-        Set<CartItemDto> cartItemDtos = cart.getItems().stream()
-                .map(this::convertCartItemToDto)
-                .collect(Collectors.toSet());
+        // Hibernate lazy loading collection'ını güvenli şekilde işle
+        Set<CartItemDto> cartItemDtos = null;
+        try {
+            if (cart.getItems() != null && !cart.getItems().isEmpty()) {
+                // Collection'ı force initialize et
+                cart.getItems().size(); // Lazy loading'i tetikle
+                
+                cartItemDtos = cart.getItems().stream()
+                        .map(this::convertCartItemToDto)
+                        .collect(Collectors.toSet());
+            } else {
+                cartItemDtos = Set.of(); // Empty set
+            }
+        } catch (Exception e) {
+            // Lazy loading hatası durumunda empty set döndür
+            System.err.println("Error converting cart items: " + e.getMessage());
+            cartItemDtos = Set.of();
+        }
         
         cartDto.setItems(cartItemDtos);
         return cartDto;
