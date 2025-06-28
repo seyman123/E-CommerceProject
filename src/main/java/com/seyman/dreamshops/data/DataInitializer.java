@@ -4,6 +4,7 @@ import com.seyman.dreamshops.exceptions.ResourceNotFoundException;
 import com.seyman.dreamshops.model.*;
 import com.seyman.dreamshops.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.io.ClassPathResource;
@@ -22,6 +23,7 @@ import java.util.Set;
 @Transactional
 @Component 
 @RequiredArgsConstructor
+@Slf4j
 public class DataInitializer implements ApplicationListener<ApplicationReadyEvent> {
     
     private final UserRepository userRepository;
@@ -34,14 +36,28 @@ public class DataInitializer implements ApplicationListener<ApplicationReadyEven
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-        Set<String> defaultRoles = Set.of("ROLE_ADMIN", "ROLE_USER");
-        createDefaultRoleIfNotExists(defaultRoles);
-        createDefaultUserIfNotExists();
-        createDefaultAdminIfNotExists();
-        createDefaultCategoriesIfNotExists();
-        createDefaultProductsIfNotExists();
-        createSampleSaleData();
-        createSampleCoupons();
+        // Prevent multiple initializations in cloud environments
+        if (System.getProperty("data.initialized") != null) {
+            log.info("Data already initialized, skipping...");
+            return;
+        }
+        
+        try {
+            Set<String> defaultRoles = Set.of("ROLE_ADMIN", "ROLE_USER");
+            createDefaultRoleIfNotExists(defaultRoles);
+            createDefaultUserIfNotExists();
+            createDefaultAdminIfNotExists();
+            createDefaultCategoriesIfNotExists();
+            createDefaultProductsIfNotExists();
+            createSampleSaleData();
+            createSampleCoupons();
+            
+            // Mark as initialized
+            System.setProperty("data.initialized", "true");
+            log.info("Data initialization completed successfully");
+        } catch (Exception e) {
+            log.error("Data initialization failed: {}", e.getMessage(), e);
+        }
     }
 
     private void createDefaultUserIfNotExists() {

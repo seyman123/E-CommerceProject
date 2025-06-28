@@ -1,9 +1,11 @@
 package com.seyman.dreamshops.config;
 
 import org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -14,6 +16,8 @@ import java.time.Duration;
 
 @Configuration
 @EnableCaching
+@Profile("!prod") // Disable Redis for production profile
+@ConditionalOnProperty(name = "spring.data.redis.repositories.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisConfig {
 
     @Bean
@@ -36,28 +40,20 @@ public class RedisConfig {
     @Bean
     public RedisCacheConfiguration cacheConfiguration() {
         return RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(30)) // Default TTL: 30 minutes
-                .disableCachingNullValues()
-                .serializeKeysWith(org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
-                        .fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
-                        .fromSerializer(new GenericJackson2JsonRedisSerializer()));
+            .entryTtl(Duration.ofMinutes(60))
+            .disableCachingNullValues()
+            .serializeKeysWith(org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
+                .fromSerializer(new StringRedisSerializer()))
+            .serializeValuesWith(org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
+                .fromSerializer(new GenericJackson2JsonRedisSerializer()));
     }
 
     @Bean
     public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer() {
         return (builder) -> builder
-                .withCacheConfiguration("products",
-                        RedisCacheConfiguration.defaultCacheConfig()
-                                .entryTtl(Duration.ofMinutes(30))) // Products cache: 30 min
-                .withCacheConfiguration("categories",
-                        RedisCacheConfiguration.defaultCacheConfig()
-                                .entryTtl(Duration.ofHours(2))) // Categories cache: 2 hours
-                .withCacheConfiguration("sales",
-                        RedisCacheConfiguration.defaultCacheConfig()
-                                .entryTtl(Duration.ofMinutes(10))) // Sales cache: 10 min
-                .withCacheConfiguration("searches",
-                        RedisCacheConfiguration.defaultCacheConfig()
-                                .entryTtl(Duration.ofMinutes(15))); // Search cache: 15 min
+            .withCacheConfiguration("productCache",
+                RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(30)))
+            .withCacheConfiguration("categoryCache",
+                RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(60)));
     }
 } 

@@ -2,85 +2,120 @@ package com.seyman.dreamshops.service.cache;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 @Slf4j
 public class CacheService {
 
-    private final RedisTemplate<String, Object> redisTemplate;
-    private boolean redisAvailable = true;
-
-    @Autowired
-    public CacheService(RedisTemplate<String, Object> redisTemplate) {
-        this.redisTemplate = redisTemplate;
-        testRedisConnection();
-    }
-
-    private void testRedisConnection() {
-        try {
-            redisTemplate.opsForValue().set("test", "test", Duration.ofSeconds(1));
-            redisTemplate.delete("test");
-            log.info("Redis connection successful - Cache enabled");
-            redisAvailable = true;
-        } catch (Exception e) {
-            log.warn("Redis connection failed - Cache disabled, falling back to direct DB access: {}", e.getMessage());
-            redisAvailable = false;
-        }
-    }
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
+    
+    // Fallback in-memory cache when Redis is not available
+    private final ConcurrentMap<String, CacheEntry> inMemoryCache = new ConcurrentHashMap<>();
 
     public void put(String key, Object value, Duration ttl) {
-        if (!redisAvailable) return;
-        
         try {
-            redisTemplate.opsForValue().set(key, value, ttl);
-        } catch (Exception e) {
-            log.warn("Cache put failed for key {}: {}", key, e.getMessage());
-            redisAvailable = false;
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T> Optional<T> get(String key, Class<T> type) {
-        if (!redisAvailable) return Optional.empty();
-        
-        try {
-            Object value = redisTemplate.opsForValue().get(key);
-            if (value != null) {
-                return Optional.of((T) value);
+            if (redisTemplate != null) {
+                // Use Redis if available
+                redisTemplate.opsForValue().set(key, value, ttl);
+                log.debug("Cached value in Redis with key: {}", key);
+            } else {
+                // Fall back to in-memory cache
+                long expireTime = System.currentTimeMillis() + ttl.toMillis();
+                inMemoryCache.put(key, new CacheEntry(value, expireTime));
+                log.debug("Cached value in memory with key: {}", key);
             }
         } catch (Exception e) {
-            log.warn("Cache get failed for key {}: {}", key, e.getMessage());
-            redisAvailable = false;
+            log.warn("Failed to cache value with key {}: {}", key, e.getMessage());
         }
-        return Optional.empty();
     }
 
-    public void evict(String key) {
-        if (!redisAvailable) return;
-        
+    public <T> Optional<T> get(String key, Class<T> type) {
         try {
-            redisTemplate.delete(key);
+            if (redisTemplate != null) {
+                // Try Redis first
+                Object value = redisTemplate.opsForValue().get(key);
+                if (value != null && type.isInstance(value)) {
+                    log.debug("Cache HIT in Redis for key: {}", key);
+                    return Optional.of(type.cast(value));
+                }
+            } else {
+                // Check in-memory cache
+                CacheEntry entry = inMemoryCache.get(key);
+                if (entry != null && !entry.isExpired() && type.isInstance(entry.getValue())) {
+                    log.debug("Cache HIT in memory for key: {}", key);
+                    return Optional.of(type.cast(entry.getValue()));
+                } else if (entry != null && entry.isExpired()) {
+                    // Remove expired entry
+                    inMemoryCache.remove(key);
+                }
+            }
+            
+            log.debug("Cache MISS for key: {}", key);
+            return Optional.empty();
         } catch (Exception e) {
-            log.warn("Cache evict failed for key {}: {}", key, e.getMessage());
+            log.warn("Failed to get cached value for key {}: {}", key, e.getMessage());
+            return Optional.empty();
         }
     }
 
-    public void evictPattern(String pattern) {
-        if (!redisAvailable) return;
-        
+    public void delete(String key) {
         try {
-            redisTemplate.delete(redisTemplate.keys(pattern + "*"));
+            if (redisTemplate != null) {
+                redisTemplate.delete(key);
+                log.debug("Deleted key from Redis: {}", key);
+            } else {
+                inMemoryCache.remove(key);
+                log.debug("Deleted key from memory: {}", key);
+            }
         } catch (Exception e) {
-            log.warn("Cache evict pattern failed for pattern {}: {}", pattern, e.getMessage());
+            log.warn("Failed to delete cached value for key {}: {}", key, e.getMessage());
         }
     }
 
-    public boolean isRedisAvailable() {
-        return redisAvailable;
+    public void deleteByPattern(String pattern) {
+        try {
+            if (redisTemplate != null) {
+                var keys = redisTemplate.keys(pattern);
+                if (keys != null && !keys.isEmpty()) {
+                    redisTemplate.delete(keys);
+                    log.debug("Deleted {} keys matching pattern: {}", keys.size(), pattern);
+                }
+            } else {
+                // For in-memory cache, remove keys matching pattern
+                inMemoryCache.keySet().removeIf(key -> key.matches(pattern.replace("*", ".*")));
+                log.debug("Deleted keys matching pattern from memory: {}", pattern);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to delete cached values for pattern {}: {}", pattern, e.getMessage());
+        }
+    }
+
+    // Inner class for in-memory cache entries
+    private static class CacheEntry {
+        private final Object value;
+        private final long expireTime;
+
+        public CacheEntry(Object value, long expireTime) {
+            this.value = value;
+            this.expireTime = expireTime;
+        }
+
+        public Object getValue() {
+            return value;
+        }
+
+        public boolean isExpired() {
+            return System.currentTimeMillis() > expireTime;
+        }
     }
 } 

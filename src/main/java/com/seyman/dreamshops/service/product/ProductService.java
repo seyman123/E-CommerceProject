@@ -427,8 +427,9 @@ public class ProductService implements IProductService {
 
     private void clearProductCaches() {
         try {
-            cacheService.evictPattern("products");
-            log.info("All product caches cleared");
+            // Clear all product-related caches
+            cacheService.deleteByPattern("products:*");
+            log.info("Product caches cleared successfully");
         } catch (Exception e) {
             log.warn("Failed to clear product caches: {}", e.getMessage());
         }
