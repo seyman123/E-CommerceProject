@@ -324,12 +324,27 @@ public class ProductService implements IProductService {
     }
     @Override
     public ProductDto convertToDto(Product product) {
-        ProductDto productDto = modelMapper.map(product, ProductDto.class);
+        // Manual mapping instead of ModelMapper to avoid collection conversion issues
+        ProductDto productDto = new ProductDto();
+        productDto.setId(product.getId());
+        productDto.setName(product.getName());
+        productDto.setBrand(product.getBrand());
+        productDto.setPrice(product.getPrice());
+        productDto.setInventory(product.getInventory());
+        productDto.setDescription(product.getDescription());
+        productDto.setCategory(product.getCategory());
+        
+        // Discount fields
+        productDto.setDiscountPrice(product.getDiscountPrice());
+        productDto.setDiscountPercentage(product.getDiscountPercentage());
+        productDto.setIsOnSale(product.getIsOnSale());
+        productDto.setIsFlashSale(product.getIsFlashSale());
+        productDto.setSaleStartDate(product.getSaleStartDate());
+        productDto.setSaleEndDate(product.getSaleEndDate());
+        productDto.setFlashSaleStock(product.getFlashSaleStock());
+        
+        // Get images and convert them
         List<Image> images = imageRepository.findByProductId(product.getId());
-        
-        // Debug logging
-        // Debug logs removed for production
-        
         List<ImageDto> imageDtos = images.stream()
                 .map(image -> modelMapper.map(image, ImageDto.class))
                 .toList();
