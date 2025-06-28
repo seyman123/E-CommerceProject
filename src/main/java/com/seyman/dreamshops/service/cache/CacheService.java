@@ -97,6 +97,7 @@ public class CacheService {
             }
         } catch (Exception e) {
             log.warn("Failed to delete cached values for pattern {}: {}", pattern, e.getMessage());
+
         }
     }
 
@@ -118,4 +119,4 @@ public class CacheService {
             return System.currentTimeMillis() > expireTime;
         }
     }
-} 
+} } 
