@@ -96,8 +96,20 @@ public class UserService implements IUserService{
     @Override
     public UserDto getAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ResourceNotFoundException("User not authenticated");
+        }
+        
         String email = authentication.getName();
+        if (email == null || email.isEmpty()) {
+            throw new ResourceNotFoundException("User email not found in authentication");
+        }
+        
         User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new ResourceNotFoundException("User not found with email: " + email);
+        }
+        
         return this.convertUserToDto(user);
     }
 }

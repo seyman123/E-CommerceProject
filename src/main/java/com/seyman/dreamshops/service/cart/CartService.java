@@ -54,6 +54,10 @@ public class CartService implements ICartService{
 
     @Override
     public Cart initialNewCart(User user) {
+        if (user == null || user.getId() == null) {
+            throw new ResourceNotFoundException("User is null or has no ID");
+        }
+        
         return Optional.ofNullable(this.getCartByUserId(user.getId()))
                 .orElseGet(() -> {
                     Cart cart = new Cart();

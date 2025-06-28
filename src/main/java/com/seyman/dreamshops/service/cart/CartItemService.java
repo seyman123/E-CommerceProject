@@ -34,13 +34,26 @@ public class CartItemService implements ICartItemService {
 
     @Override
     public void addItemToCart(Long cartId, Long productId, int quantity) {
-        // Debug logs removed for production
+        if (cartId == null) {
+            throw new ResourceNotFoundException("Cart ID cannot be null");
+        }
+        if (productId == null) {
+            throw new ResourceNotFoundException("Product ID cannot be null");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than 0");
+        }
         
-        //1 -> Sepeti al
         try {
             Cart cart = cartService.getCart(cartId);
+            if (cart == null) {
+                throw new ResourceNotFoundException("Cart not found with ID: " + cartId);
+            }
             
             Product product = productService.getProductById(productId);
+            if (product == null) {
+                throw new ResourceNotFoundException("Product not found with ID: " + productId);
+            }
             
             CartItem cartItem = cartItemRepository.findByCartAndProduct(cart, product);
             
@@ -59,10 +72,11 @@ public class CartItemService implements ICartItemService {
             cartItem.setTotalPrice();
             cartItemRepository.save(cartItem);
             
-            // Debug logs removed for production
+        } catch (ResourceNotFoundException e) {
+            throw e; // Re-throw ResourceNotFoundException as is
         } catch (Exception e) {
-            // Debug logs removed for production
-            throw new RuntimeException("Sepete ürün eklenirken hata oluştu: " + e.getMessage());
+            e.printStackTrace(); // Log for debugging
+            throw new RuntimeException("Sepete ürün eklenirken hata oluştu: " + e.getMessage(), e);
         }
     }
 

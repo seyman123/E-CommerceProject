@@ -42,6 +42,10 @@ public class CartController {
         try {
             UserDto user = userService.getAuthenticatedUser();
             
+            if (user == null || user.getId() == null) {
+                return ResponseEntity.status(UNAUTHORIZED).body(new ApiResponse("User authentication failed", null));
+            }
+            
             Cart cart = cartService.getCartByUserId(user.getId());
             
             if (cart == null) {
@@ -54,9 +58,11 @@ public class CartController {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
         } catch (JwtException e) {
-            return ResponseEntity.status(UNAUTHORIZED).body(new ApiResponse(e.getMessage(), null));
+            return ResponseEntity.status(UNAUTHORIZED).body(new ApiResponse("Authentication failed: " + e.getMessage(), null));
         } catch (Exception e) {
-            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Unexpected error occurred", null));
+            // Log the full error for debugging
+            e.printStackTrace();
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Unexpected error occurred: " + e.getMessage(), null));
         }
     }
 
