@@ -28,12 +28,12 @@ public class ProductController {
 
     @GetMapping("/all")
     public ResponseEntity<ApiResponse> getAllProducts() {
-        List<Product> products = productService.getAllProducts();
-        List<ProductDto> convertedProducts = productService.getConvertedProducts(products);
         try {
+            List<Product> products = productService.getAllProducts();
+            List<ProductDto> convertedProducts = productService.getConvertedProducts(products);
             return ResponseEntity.ok(new ApiResponse("Success!", convertedProducts));
         } catch (Exception e) {
-            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Error: ", INTERNAL_SERVER_ERROR));
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Error: " + e.getMessage(), null));
         }
     }
 
@@ -233,6 +233,16 @@ public class ProductController {
             return ResponseEntity.ok(new ApiResponse("Products found!", response));
         } catch (Exception e) {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse(e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<ApiResponse> getProductCount() {
+        try {
+            List<Product> products = productService.getAllProducts();
+            return ResponseEntity.ok(new ApiResponse("Product count!", products.size()));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Error: " + e.getMessage(), null));
         }
     }
 }
