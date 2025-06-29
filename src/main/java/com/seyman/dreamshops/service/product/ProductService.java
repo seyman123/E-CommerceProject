@@ -179,7 +179,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "productCache", key = "'all-products'")
+    // @Cacheable(value = "productCache", key = "'all-products'") // Disabled due to Redis ObjectMapper conflicts
     public List<Product> getAllProducts() {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:all:optimized";
@@ -208,7 +208,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "categoryCache", key = "#category")
+    // @Cacheable(value = "categoryCache", key = "#category") // Disabled due to Redis ObjectMapper conflicts
     public List<Product> getProductsByCategory(String category) {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category:optimized:" + category;

@@ -28,8 +28,9 @@ public class RedisConfig {
     public ObjectMapper redisObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        objectMapper.activateDefaultTyping(LaissezFaireSubTypeValidator.instance, 
-            ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
+        // REMOVE TYPE INFO - causing JSON parsing issues for HTTP requests
+        // objectMapper.activateDefaultTyping(LaissezFaireSubTypeValidator.instance, 
+        //     ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
         return objectMapper;
     }
 
