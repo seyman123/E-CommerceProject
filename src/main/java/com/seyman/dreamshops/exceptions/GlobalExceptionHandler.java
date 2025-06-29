@@ -58,6 +58,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse> handleGenericException(Exception ex) {
+        // Log the actual exception for debugging
+        System.err.println("=== GLOBAL EXCEPTION HANDLER ===");
+        System.err.println("Exception Type: " + ex.getClass().getSimpleName());
+        System.err.println("Exception Message: " + ex.getMessage());
+        ex.printStackTrace();
+        System.err.println("=== END EXCEPTION DETAILS ===");
+        
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse("Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.", null));
     }

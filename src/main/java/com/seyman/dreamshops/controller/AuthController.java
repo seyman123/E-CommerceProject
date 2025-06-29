@@ -30,17 +30,34 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse> login(@Valid @RequestBody LoginRequest request) {
+        System.out.println("=== LOGIN ATTEMPT ===");
+        System.out.println("Email: " + request.getEmail());
+        System.out.println("Password length: " + (request.getPassword() != null ? request.getPassword().length() : "null"));
+        
         try {
+            System.out.println("Attempting authentication...");
             Authentication authentication = authenticationManager
                     .authenticate(new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+            
+            System.out.println("Authentication successful");
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            
+            System.out.println("Generating JWT token...");
             String jwt = jwtUtils.generateTokenForUser(authentication);
+            
+            System.out.println("Getting user details...");
             ShopUserDetails userDetails = (ShopUserDetails) authentication.getPrincipal();
             JwtResponse jwtResponse = new JwtResponse(userDetails.getId(), jwt);
 
+            System.out.println("Login successful for user: " + userDetails.getEmail());
             return ResponseEntity.ok(new ApiResponse("Login Successful", jwtResponse));
         } catch (AuthenticationException e) {
+            System.err.println("Authentication failed: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            System.err.println("Unexpected error during login: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Re-throw to be caught by GlobalExceptionHandler
         }
     }
 
