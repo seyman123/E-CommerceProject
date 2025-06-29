@@ -13,7 +13,7 @@ import com.seyman.dreamshops.repository.ProductRepository;
 import com.seyman.dreamshops.service.cart.ICartService;
 import com.seyman.dreamshops.service.coupon.ICouponService;
 import lombok.RequiredArgsConstructor;
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -31,6 +31,15 @@ public class OrderService implements IOrderService {
     private final ProductRepository productRepository;
     private final ICartService cartService;
     private final ICouponService couponService;
+
+    @Value("${api.prefix:/api/v1}")
+    private String apiPrefix;
+
+    @Value("${server.servlet.context-path:}")
+    private String contextPath;
+
+    @Value("${app.base-url:}")
+    private String baseUrl;
 
     @Override
     public OrderDto placeOrder(Long userId) {
@@ -247,9 +256,25 @@ public class OrderService implements IOrderService {
         dto.setProductName(orderItem.getProduct().getName());
         dto.setProductBrand(orderItem.getProduct().getBrand());
         dto.setProductCategory(orderItem.getProduct().getCategory() != null ? orderItem.getProduct().getCategory().getName() : "");
-        dto.setProductImageUrl(orderItem.getProduct().getImages() != null && !orderItem.getProduct().getImages().isEmpty() 
-                ? "http://localhost:9193/api/v1" + orderItem.getProduct().getImages().get(0).getDownloadUrl() 
-                : "");
+        
+        // Use proper base URL configuration instead of hardcoded localhost
+        if (orderItem.getProduct().getImages() != null && !orderItem.getProduct().getImages().isEmpty()) {
+            String imageUrl = orderItem.getProduct().getImages().get(0).getDownloadUrl();
+            if (imageUrl != null && !imageUrl.startsWith("http")) {
+                // If it's a relative URL, construct the full URL
+                String fullBaseUrl = baseUrl;
+                if (fullBaseUrl.isEmpty()) {
+                    // Fallback to context path + api prefix if base URL is not configured
+                    fullBaseUrl = contextPath + apiPrefix;
+                }
+                dto.setProductImageUrl(fullBaseUrl + imageUrl);
+            } else {
+                dto.setProductImageUrl(imageUrl);
+            }
+        } else {
+            dto.setProductImageUrl("");
+        }
+        
         dto.setQuantity(orderItem.getQuantity());
         dto.setPrice(orderItem.getPrice());
         return dto;
