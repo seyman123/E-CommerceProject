@@ -15,6 +15,7 @@ import com.seyman.dreamshops.service.coupon.ICouponService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -124,18 +125,29 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OrderDto getOrder(Long orderId) {
-        return orderRepository.findById(orderId)
-                .map(this::convertToDto)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        Order order = orderRepository.findByIdWithDetails(orderId);
+        if (order == null) {
+            throw new ResourceNotFoundException("Order not found");
+        }
+        return this.convertToDto(order);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<OrderDto> getUserOrders(Long userId) {
-        return orderRepository.findByUser_Id(userId)
-                .stream()
-                .map(this::convertToDto)
-                .toList();
+        try {
+            List<Order> orders = orderRepository.findByUser_Id(userId);
+            return orders.stream()
+                    .map(this::convertToDto)
+                    .toList();
+        } catch (Exception e) {
+            // Log the actual error for debugging
+            System.err.println("Error fetching user orders for userId: " + userId + " - " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to fetch user orders: " + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -163,8 +175,9 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<OrderDto> getAllOrders() {
-        return orderRepository.findAll()
+        return orderRepository.findAllWithDetails()
                 .stream()
                 .map(this::convertToDto)
                 .toList();
@@ -252,35 +265,56 @@ public class OrderService implements IOrderService {
     }
     
     private OrderItemDto convertOrderItemToDto(OrderItem orderItem) {
-        OrderItemDto dto = new OrderItemDto();
-        dto.setProductId(orderItem.getProduct().getId());
-        dto.setProductName(orderItem.getProduct().getName());
-        dto.setProductBrand(orderItem.getProduct().getBrand());
-        dto.setProductCategory(orderItem.getProduct().getCategory() != null ? orderItem.getProduct().getCategory().getName() : "");
-        
-        // Use Render's external URL for image URLs in production
-        if (orderItem.getProduct().getImages() != null && !orderItem.getProduct().getImages().isEmpty()) {
-            String imageUrl = orderItem.getProduct().getImages().get(0).getDownloadUrl();
-            if (imageUrl != null && !imageUrl.startsWith("http")) {
-                // If it's a relative URL, construct the full URL
-                String fullBaseUrl;
-                if (!renderExternalUrl.isEmpty()) {
-                    // Use Render's external URL in production
-                    fullBaseUrl = renderExternalUrl + apiPrefix;
-                } else {
-                    // Fallback for development
-                    fullBaseUrl = contextPath + apiPrefix;
+        try {
+            OrderItemDto dto = new OrderItemDto();
+            dto.setProductId(orderItem.getProduct().getId());
+            dto.setProductName(orderItem.getProduct().getName());
+            dto.setProductBrand(orderItem.getProduct().getBrand());
+            
+            // Safely get category name
+            String categoryName = "";
+            try {
+                if (orderItem.getProduct().getCategory() != null) {
+                    categoryName = orderItem.getProduct().getCategory().getName();
                 }
-                dto.setProductImageUrl(fullBaseUrl + imageUrl);
-            } else {
-                dto.setProductImageUrl(imageUrl);
+            } catch (Exception e) {
+                System.err.println("Error getting category for product: " + orderItem.getProduct().getId() + " - " + e.getMessage());
             }
-        } else {
-            dto.setProductImageUrl("");
+            dto.setProductCategory(categoryName);
+            
+            // Safely handle image URL
+            String imageUrl = "";
+            try {
+                if (orderItem.getProduct().getImages() != null && !orderItem.getProduct().getImages().isEmpty()) {
+                    String downloadUrl = orderItem.getProduct().getImages().get(0).getDownloadUrl();
+                    if (downloadUrl != null && !downloadUrl.startsWith("http")) {
+                        // If it's a relative URL, construct the full URL
+                        String fullBaseUrl;
+                        if (!renderExternalUrl.isEmpty()) {
+                            // Use Render's external URL in production
+                            fullBaseUrl = renderExternalUrl + apiPrefix;
+                        } else {
+                            // Fallback for development
+                            fullBaseUrl = contextPath + apiPrefix;
+                        }
+                        imageUrl = fullBaseUrl + downloadUrl;
+                    } else if (downloadUrl != null) {
+                        imageUrl = downloadUrl;
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error getting image URL for product: " + orderItem.getProduct().getId() + " - " + e.getMessage());
+                imageUrl = ""; // Default to empty string on error
+            }
+            dto.setProductImageUrl(imageUrl);
+            
+            dto.setQuantity(orderItem.getQuantity());
+            dto.setPrice(orderItem.getPrice());
+            return dto;
+        } catch (Exception e) {
+            System.err.println("Error converting OrderItem to DTO: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to convert order item: " + e.getMessage(), e);
         }
-        
-        dto.setQuantity(orderItem.getQuantity());
-        dto.setPrice(orderItem.getPrice());
-        return dto;
     }
 }
