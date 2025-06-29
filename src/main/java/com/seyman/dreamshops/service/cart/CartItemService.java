@@ -94,22 +94,41 @@ public class CartItemService implements ICartItemService {
     @Override
     @Transactional
     public void removeItemFromCart(Long cartId, Long productId) {
+        System.out.println("=== CART ITEM SERVICE - REMOVE ITEM ===");
+        System.out.println("Cart ID: " + cartId);
+        System.out.println("Product ID: " + productId);
+        
         try {
             // Get fresh cart from database to avoid detached entity issues
             Cart cart = cartRepository.findByIdWithItems(cartId);
+            System.out.println("Cart found: " + (cart != null));
             if (cart == null) {
+                System.out.println("Cart is null for ID: " + cartId);
                 throw new ResourceNotFoundException("Cart not found with ID: " + cartId);
             }
             
+            System.out.println("Cart has " + cart.getItems().size() + " items");
+            
             Product product = productService.getProductById(productId);
+            System.out.println("Product found: " + (product != null));
+            if (product == null) {
+                System.out.println("Product is null for ID: " + productId);
+                throw new ResourceNotFoundException("Product not found with ID: " + productId);
+            }
+            
             CartItem cartItem = cartItemRepository.findByCartAndProduct(cart, product);
+            System.out.println("CartItem found: " + (cartItem != null));
             
             if (cartItem != null) {
+                System.out.println("Removing cart item with ID: " + cartItem.getId());
+                
                 // Remove the item from cart's collection first
-                cart.getItems().remove(cartItem);
+                boolean removed = cart.getItems().remove(cartItem);
+                System.out.println("Item removed from collection: " + removed);
                 
                 // Delete the cart item from database
                 cartItemRepository.delete(cartItem);
+                System.out.println("Item deleted from database");
                 
                 // Recalculate cart total amount from remaining items
                 BigDecimal totalAmount = cart.getItems().stream()
@@ -117,12 +136,17 @@ public class CartItemService implements ICartItemService {
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
                 cart.setTotalAmount(totalAmount);
                 cartRepository.save(cart);
+                System.out.println("Cart total updated to: " + totalAmount);
+                System.out.println("Remove item operation completed successfully");
             } else {
+                System.out.println("CartItem not found for cart: " + cartId + " and product: " + productId);
                 throw new ResourceNotFoundException("Item not found in cart");
             }
         } catch (ResourceNotFoundException e) {
+            System.out.println("ResourceNotFoundException in removeItemFromCart: " + e.getMessage());
             throw e;
         } catch (Exception e) {
+            System.out.println("Exception in removeItemFromCart: " + e.getMessage());
             e.printStackTrace(); // Log for debugging
             throw new RuntimeException("Ürün sepetten çıkarılırken hata oluştu: " + e.getMessage(), e);
         }

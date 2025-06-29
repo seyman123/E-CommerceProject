@@ -61,12 +61,20 @@ public class CartItemController {
 
     @DeleteMapping("/cart/{cartId}/item/{productId}/remove")
     public ResponseEntity<ApiResponse> removeItemFromCart(@PathVariable Long cartId, @PathVariable Long productId) {
+        System.out.println("=== REMOVE ITEM REQUEST ===");
+        System.out.println("Cart ID: " + cartId);
+        System.out.println("Product ID: " + productId);
+        
         try {
             cartItemService.removeItemFromCart(cartId, productId);
+            System.out.println("Remove item successful");
             return ResponseEntity.ok(new ApiResponse("Remove Item Success", null));
         } catch (ResourceNotFoundException e) {
+            System.out.println("Resource not found error: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
         } catch (Exception e) {
+            System.out.println("General error in removeItemFromCart: " + e.getMessage());
             e.printStackTrace(); // Log for debugging
             return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.", null));
         }
