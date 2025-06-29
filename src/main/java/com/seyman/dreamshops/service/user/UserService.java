@@ -85,12 +85,36 @@ public class UserService implements IUserService{
 
     @Override
     public UserDto convertUserToDto(User user) {
-        return this.modelMapper.map(user, UserDto.class);
+        if (user == null) {
+            return null;
+        }
+        
+        UserDto userDto = new UserDto();
+        userDto.setId(user.getId());
+        userDto.setFirstName(user.getFirstName());
+        userDto.setLastName(user.getLastName());
+        userDto.setEmail(user.getEmail());
+        userDto.setPhone(user.getPhone());
+        userDto.setDateOfBirth(user.getDateOfBirth());
+        
+        return userDto;
     }
 
     @Override
     public User convertDtoToUser(UserDto userDto) {
-        return this.modelMapper.map(userDto, User.class);
+        if (userDto == null) {
+            return null;
+        }
+        
+        User user = new User();
+        user.setId(userDto.getId());
+        user.setFirstName(userDto.getFirstName());
+        user.setLastName(userDto.getLastName());
+        user.setEmail(userDto.getEmail());
+        user.setPhone(userDto.getPhone());
+        user.setDateOfBirth(userDto.getDateOfBirth());
+        
+        return user;
     }
 
     @Override

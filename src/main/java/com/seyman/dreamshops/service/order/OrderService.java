@@ -13,7 +13,7 @@ import com.seyman.dreamshops.repository.ProductRepository;
 import com.seyman.dreamshops.service.cart.ICartService;
 import com.seyman.dreamshops.service.coupon.ICouponService;
 import lombok.RequiredArgsConstructor;
-import org.modelmapper.ModelMapper;
+
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -31,7 +31,6 @@ public class OrderService implements IOrderService {
     private final ProductRepository productRepository;
     private final ICartService cartService;
     private final ICouponService couponService;
-    private final ModelMapper modelMapper;
 
     @Override
     public OrderDto placeOrder(Long userId) {

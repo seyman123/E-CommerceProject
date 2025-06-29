@@ -343,10 +343,10 @@ public class ProductService implements IProductService {
         productDto.setSaleEndDate(product.getSaleEndDate());
         productDto.setFlashSaleStock(product.getFlashSaleStock());
         
-        // Get images and convert them
+        // Get images and convert them - manuel mapping to avoid ModelMapper issues
         List<Image> images = imageRepository.findByProductId(product.getId());
         List<ImageDto> imageDtos = images.stream()
-                .map(image -> modelMapper.map(image, ImageDto.class))
+                .map(this::convertImageToDto)
                 .toList();
         productDto.setImages(imageDtos);
 
@@ -356,6 +356,19 @@ public class ProductService implements IProductService {
         productDto.setCurrentlyOnSale(product.isCurrentlyOnSale());
 
         return productDto;
+    }
+
+    private ImageDto convertImageToDto(Image image) {
+        if (image == null) {
+            return null;
+        }
+        
+        ImageDto imageDto = new ImageDto();
+        imageDto.setId(image.getId());
+        imageDto.setFileName(image.getFileName());
+        imageDto.setDownloadUrl(image.getDownloadUrl());
+        
+        return imageDto;
     }
 
     // Sale-related methods implementation
