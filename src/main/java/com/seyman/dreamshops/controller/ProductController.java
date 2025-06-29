@@ -199,15 +199,98 @@ public class ProductController {
         }
     }
 
+    @GetMapping("/paginated")
+    public ResponseEntity<ApiResponse> getAllProductsPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "name,asc") String sort) {
+        try {
+            String[] sortParams = sort.split(",");
+            String sortBy = sortParams[0];
+            String sortDirection = sortParams.length > 1 ? sortParams[1] : "asc";
+            
+            org.springframework.data.domain.Sort.Direction direction = 
+                sortDirection.equalsIgnoreCase("desc") ? 
+                org.springframework.data.domain.Sort.Direction.DESC : 
+                org.springframework.data.domain.Sort.Direction.ASC;
+                
+            org.springframework.data.domain.Pageable pageable = 
+                org.springframework.data.domain.PageRequest.of(page, size, 
+                org.springframework.data.domain.Sort.by(direction, sortBy));
+            
+            org.springframework.data.domain.Page<Product> productPage = productService.getAllProducts(pageable);
+            List<ProductDto> productDtos = productService.getConvertedProducts(productPage.getContent());
+            
+            java.util.Map<String, Object> response = new java.util.HashMap<>();
+            response.put("products", productDtos);
+            response.put("totalElements", productPage.getTotalElements());
+            response.put("totalPages", productPage.getTotalPages());
+            response.put("currentPage", productPage.getNumber());
+            response.put("pageSize", productPage.getSize());
+            
+            return ResponseEntity.ok(new ApiResponse("Products found!", response));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Error: " + e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/category/paginated")
+    public ResponseEntity<ApiResponse> getProductsByCategoryPaginated(
+            @RequestParam String category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "name,asc") String sort) {
+        try {
+            String[] sortParams = sort.split(",");
+            String sortBy = sortParams[0];
+            String sortDirection = sortParams.length > 1 ? sortParams[1] : "asc";
+            
+            org.springframework.data.domain.Sort.Direction direction = 
+                sortDirection.equalsIgnoreCase("desc") ? 
+                org.springframework.data.domain.Sort.Direction.DESC : 
+                org.springframework.data.domain.Sort.Direction.ASC;
+                
+            org.springframework.data.domain.Pageable pageable = 
+                org.springframework.data.domain.PageRequest.of(page, size, 
+                org.springframework.data.domain.Sort.by(direction, sortBy));
+            
+            org.springframework.data.domain.Page<Product> productPage = 
+                productService.getProductsByCategory(category, pageable);
+            List<ProductDto> productDtos = productService.getConvertedProducts(productPage.getContent());
+            
+            java.util.Map<String, Object> response = new java.util.HashMap<>();
+            response.put("products", productDtos);
+            response.put("totalElements", productPage.getTotalElements());
+            response.put("totalPages", productPage.getTotalPages());
+            response.put("currentPage", productPage.getNumber());
+            response.put("pageSize", productPage.getSize());
+            
+            return ResponseEntity.ok(new ApiResponse("Products found!", response));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Error: " + e.getMessage(), null));
+        }
+    }
+
     @GetMapping("/search/paginated")
     public ResponseEntity<ApiResponse> searchProductsPaginated(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "name,asc") String sort) {
         try {
+            String[] sortParams = sort.split(",");
+            String sortBy = sortParams[0];
+            String sortDirection = sortParams.length > 1 ? sortParams[1] : "asc";
+            
+            org.springframework.data.domain.Sort.Direction direction = 
+                sortDirection.equalsIgnoreCase("desc") ? 
+                org.springframework.data.domain.Sort.Direction.DESC : 
+                org.springframework.data.domain.Sort.Direction.ASC;
+                
             org.springframework.data.domain.Pageable pageable = 
-                org.springframework.data.domain.PageRequest.of(page, size);
+                org.springframework.data.domain.PageRequest.of(page, size, 
+                org.springframework.data.domain.Sort.by(direction, sortBy));
             
             org.springframework.data.domain.Page<Product> productPage;
             
@@ -232,7 +315,7 @@ public class ProductController {
             
             return ResponseEntity.ok(new ApiResponse("Products found!", response));
         } catch (Exception e) {
-            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse(e.getMessage(), null));
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Error: " + e.getMessage(), null));
         }
     }
 

@@ -187,7 +187,7 @@ public class ProductService implements IProductService {
 
     @Override
     public List<Product> getAllProducts() {
-        String cacheKey = "products:all";
+        String cacheKey = "products:all:optimized";
         
         // Try to get from cache first (with proper casting)
         try {
@@ -195,16 +195,16 @@ public class ProductService implements IProductService {
             if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Product> cachedProducts = (List<Product>) cachedValue.get();
-                log.info("Cache HIT for getAllProducts");
+                log.info("Cache HIT for getAllProducts (optimized)");
                 return cachedProducts;
             }
         } catch (Exception e) {
             log.warn("Cache get failed, falling back to database: {}", e.getMessage());
         }
         
-        // Cache miss - get from database
-        log.info("Cache MISS for getAllProducts - fetching from database");
-        List<Product> products = productRepository.findAll();
+        // Cache miss - get from database with JOIN FETCH optimization
+        log.info("Cache MISS for getAllProducts (optimized) - fetching from database");
+        List<Product> products = productRepository.findAllWithImagesAndCategory();
         
         // Cache the result for 30 minutes
         cacheService.put(cacheKey, products, Duration.ofMinutes(30));
@@ -214,7 +214,7 @@ public class ProductService implements IProductService {
 
     @Override
     public List<Product> getProductsByCategory(String category) {
-        String cacheKey = "products:category:" + category;
+        String cacheKey = "products:category:optimized:" + category;
         
         // Try cache first (with proper casting)
         try {
@@ -222,16 +222,16 @@ public class ProductService implements IProductService {
             if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Product> cachedProducts = (List<Product>) cachedValue.get();
-                log.info("Cache HIT for getProductsByCategory: {}", category);
+                log.info("Cache HIT for getProductsByCategory (optimized): {}", category);
                 return cachedProducts;
             }
         } catch (Exception e) {
             log.warn("Cache get failed for category {}, falling back to database: {}", category, e.getMessage());
         }
         
-        // Cache miss - get from database
-        log.info("Cache MISS for getProductsByCategory: {} - fetching from database", category);
-        List<Product> products = productRepository.findByCategoryName(category);
+        // Cache miss - get from database with JOIN FETCH optimization
+        log.info("Cache MISS for getProductsByCategory (optimized): {} - fetching from database", category);
+        List<Product> products = productRepository.findByCategoryNameWithImagesAndCategory(category);
         
         // Cache for 30 minutes
         cacheService.put(cacheKey, products, Duration.ofMinutes(30));
@@ -256,24 +256,24 @@ public class ProductService implements IProductService {
 
     @Override
     public List<Product> getProductsByNameContaining(String name) {
-        String cacheKey = "products:search:" + name.toLowerCase();
+        String cacheKey = "products:search:optimized:" + name.toLowerCase();
         
-        // Try cache first (with proper casting)
+        // Try cache first
         try {
             Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
             if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Product> cachedProducts = (List<Product>) cachedValue.get();
-                log.info("Cache HIT for search: {}", name);
+                log.info("Cache HIT for search (optimized): {}", name);
                 return cachedProducts;
             }
         } catch (Exception e) {
             log.warn("Cache get failed for search {}, falling back to database: {}", name, e.getMessage());
         }
         
-        // Cache miss - get from database
-        log.info("Cache MISS for search: {} - fetching from database", name);
-        List<Product> products = productRepository.findByNameContaining(name);
+        // Cache miss - get from database with JOIN FETCH optimization
+        log.info("Cache MISS for search (optimized): {} - fetching from database", name);
+        List<Product> products = productRepository.findByNameContainingWithImagesAndCategory(name);
         
         // Cache search results for 15 minutes
         cacheService.put(cacheKey, products, Duration.ofMinutes(15));
@@ -283,7 +283,7 @@ public class ProductService implements IProductService {
 
     @Override
     public List<Product> getProductsByCategoryAndNameContaining(String category, String search) {
-        String cacheKey = "products:category_search:" + category.toLowerCase() + ":" + search.toLowerCase();
+        String cacheKey = "products:category_search:optimized:" + category.toLowerCase() + ":" + search.toLowerCase();
         
         // Try cache first (with proper casting)
         try {
@@ -291,16 +291,16 @@ public class ProductService implements IProductService {
             if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Product> cachedProducts = (List<Product>) cachedValue.get();
-                log.info("Cache HIT for category search: {} - {}", category, search);
+                log.info("Cache HIT for category search (optimized): {} - {}", category, search);
                 return cachedProducts;
             }
         } catch (Exception e) {
             log.warn("Cache get failed for category search {}-{}, falling back to database: {}", category, search, e.getMessage());
         }
         
-        // Cache miss - get from database
-        log.info("Cache MISS for category search: {} - {} - fetching from database", category, search);
-        List<Product> products = productRepository.findByCategoryNameAndNameContaining(category, search);
+        // Cache miss - get from database with JOIN FETCH optimization
+        log.info("Cache MISS for category search (optimized): {} - {} - fetching from database", category, search);
+        List<Product> products = productRepository.findByCategoryNameAndNameContainingWithImagesAndCategory(category, search);
         
         // Cache search results for 15 minutes
         cacheService.put(cacheKey, products, Duration.ofMinutes(15));
@@ -417,25 +417,25 @@ public class ProductService implements IProductService {
         productRepository.save(product);
     }
 
-    // Paginated methods implementation
+    // Paginated methods implementation with optimization
     @Override
     public Page<Product> getAllProducts(Pageable pageable) {
-        return productRepository.findAll(pageable);
+        return productRepository.findAllWithImagesAndCategory(pageable);
     }
 
     @Override
     public Page<Product> getProductsByCategory(String category, Pageable pageable) {
-        return productRepository.findByCategoryName(category, pageable);
+        return productRepository.findByCategoryNameWithImagesAndCategory(category, pageable);
     }
 
     @Override
     public Page<Product> getProductsByNameContaining(String search, Pageable pageable) {
-        return productRepository.findByNameContainingIgnoreCase(search, pageable);
+        return productRepository.findByNameContainingWithImagesAndCategory(search, pageable);
     }
 
     @Override
     public Page<Product> getProductsByCategoryAndNameContaining(String category, String search, Pageable pageable) {
-        return productRepository.findByCategoryNameAndNameContainingIgnoreCase(category, search, pageable);
+        return productRepository.findByCategoryNameAndNameContainingWithImagesAndCategory(category, search, pageable);
     }
 
     private void clearProductCaches() {
