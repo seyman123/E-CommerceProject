@@ -38,8 +38,9 @@ public class OrderService implements IOrderService {
     @Value("${server.servlet.context-path:}")
     private String contextPath;
 
-    @Value("${app.base-url:}")
-    private String baseUrl;
+    // Use Render's built-in environment variable for the external URL
+    @Value("${RENDER_EXTERNAL_URL:}")
+    private String renderExternalUrl;
 
     @Override
     public OrderDto placeOrder(Long userId) {
@@ -257,14 +258,17 @@ public class OrderService implements IOrderService {
         dto.setProductBrand(orderItem.getProduct().getBrand());
         dto.setProductCategory(orderItem.getProduct().getCategory() != null ? orderItem.getProduct().getCategory().getName() : "");
         
-        // Use proper base URL configuration instead of hardcoded localhost
+        // Use Render's external URL for image URLs in production
         if (orderItem.getProduct().getImages() != null && !orderItem.getProduct().getImages().isEmpty()) {
             String imageUrl = orderItem.getProduct().getImages().get(0).getDownloadUrl();
             if (imageUrl != null && !imageUrl.startsWith("http")) {
                 // If it's a relative URL, construct the full URL
-                String fullBaseUrl = baseUrl;
-                if (fullBaseUrl.isEmpty()) {
-                    // Fallback to context path + api prefix if base URL is not configured
+                String fullBaseUrl;
+                if (!renderExternalUrl.isEmpty()) {
+                    // Use Render's external URL in production
+                    fullBaseUrl = renderExternalUrl + apiPrefix;
+                } else {
+                    // Fallback for development
                     fullBaseUrl = contextPath + apiPrefix;
                 }
                 dto.setProductImageUrl(fullBaseUrl + imageUrl);
