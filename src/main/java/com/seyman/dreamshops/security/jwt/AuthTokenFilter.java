@@ -34,25 +34,42 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
+        String requestURI = request.getRequestURI();
+        String method = request.getMethod();
+        System.out.println("=== AUTH FILTER REQUEST ===");
+        System.out.println("Request: " + method + " " + requestURI);
+        
         String jwt = parseJwt(request);
+        System.out.println("JWT token present: " + (jwt != null));
+        System.out.println("JWT token (first 20 chars): " + (jwt != null ? jwt.substring(0, Math.min(jwt.length(), 20)) + "..." : "null"));
 
         try {
             if (StringUtils.hasText(jwt) && jwtUtils.validateToken(jwt)) {
+                System.out.println("JWT token is valid");
                 String username = jwtUtils.getUsernameFromToken(jwt);
+                System.out.println("Username from token: " + username);
                 UserDetails userDetails = userDetailService.loadUserByUsername(username);
+                System.out.println("UserDetails loaded: " + (userDetails != null));
                 Authentication auth = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 SecurityContextHolder.getContext().setAuthentication(auth);
+                System.out.println("Authentication set successfully");
+            } else {
+                System.out.println("JWT token validation failed or token is empty");
             }
         } catch (JwtException e) {
+            System.out.println("JWT Exception: " + e.getMessage());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write(e.getMessage() + " : Invalid or expired token, you may login and try again!");
             return;
         } catch (Exception e) {
+            System.out.println("General Exception in auth filter: " + e.getMessage());
+            e.printStackTrace();
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             response.getWriter().write(e.getMessage());
             return;
         }
 
+        System.out.println("Proceeding to next filter");
         filterChain.doFilter(request, response);
     }
 
