@@ -11,7 +11,7 @@ import java.util.List;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
     
-    @Query("SELECT DISTINCT o FROM Order o " +
+    @Query("SELECT DISTINCT o FROM com.seyman.dreamshops.model.Order o " +
            "LEFT JOIN FETCH o.orderItems oi " +
            "LEFT JOIN FETCH oi.product p " +
            "LEFT JOIN FETCH p.images " +
@@ -20,7 +20,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "ORDER BY o.orderDate DESC")
     List<Order> findByUser_Id(@Param("userId") Long userId);
     
-    @Query("SELECT DISTINCT o FROM Order o " +
+    @Query("SELECT DISTINCT o FROM com.seyman.dreamshops.model.Order o " +
            "LEFT JOIN FETCH o.orderItems oi " +
            "LEFT JOIN FETCH oi.product p " +
            "LEFT JOIN FETCH p.images " +
@@ -28,7 +28,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "WHERE o.orderId = :orderId")
     Order findByIdWithDetails(@Param("orderId") Long orderId);
     
-    @Query("SELECT DISTINCT o FROM Order o " +
+    @Query("SELECT DISTINCT o FROM com.seyman.dreamshops.model.Order o " +
            "LEFT JOIN FETCH o.orderItems oi " +
            "LEFT JOIN FETCH oi.product p " +
            "LEFT JOIN FETCH p.images " +
