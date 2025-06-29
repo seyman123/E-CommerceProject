@@ -49,12 +49,34 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    @Transactional
     public OrderDto placeOrder(Long userId, String couponCode) {
         Cart cart = cartService.getCartByUserId(userId);
-        Order order = createOrder(cart);
+        
+        if (cart == null || cart.getItems().isEmpty()) {
+            throw new IllegalStateException("Cart is empty or not found");
+        }
+        
+        Order order = createOrder(cart, couponCode);
+        order = orderRepository.save(order);
+        
+        // Clear the cart after successful order creation
+        cartService.clearCart(cart.getId());
+        
+        return convertToDto(order);
+    }
+
+    private Order createOrder(Cart cart, String couponCode) {
+        Order order = new Order();
+        order.setUser(cart.getUser());
+        order.setOrderStatus(OrderStatus.PENDING);
+        order.setOrderDate(LocalDateTime.now());
+        
+        // Create order items from cart items
         List<OrderItem> orderItems = createOrderItems(order, cart);
         order.setOrderItems(new HashSet<>(orderItems));
         
+        // Calculate amounts
         BigDecimal totalAmount = calculateTotalAmount(orderItems);
         BigDecimal originalAmount = totalAmount;
         BigDecimal discountAmount = BigDecimal.ZERO;
@@ -91,18 +113,7 @@ public class OrderService implements IOrderService {
         order.setOriginalAmount(originalAmount);
         order.setDiscountAmount(discountAmount);
         order.setTotalAmount(totalAmount);
-
-        Order savedOrder = orderRepository.save(order);
-        cartService.clearCart(cart.getId());
-
-        return this.convertToDto(savedOrder);
-    }
-
-    private Order createOrder(Cart cart) {
-        Order order = new Order();
-        order.setUser(cart.getUser());
-        order.setOrderStatus(OrderStatus.PENDING);
-        order.setOrderDate(LocalDateTime.now());
+        
         return order;
     }
 
@@ -151,9 +162,12 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    @Transactional
     public OrderDto cancelOrder(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        Order order = orderRepository.findByIdWithDetails(orderId);
+        if (order == null) {
+            throw new ResourceNotFoundException("Order not found");
+        }
         
         // Check if order can be cancelled (only PENDING and CONFIRMED orders can be cancelled)
         if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.CONFIRMED) {
@@ -184,9 +198,12 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    @Transactional
     public OrderDto updateOrderStatus(Long orderId, String status) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        Order order = orderRepository.findByIdWithDetails(orderId);
+        if (order == null) {
+            throw new ResourceNotFoundException("Order not found");
+        }
         
         try {
             OrderStatus orderStatus = OrderStatus.valueOf(status.toUpperCase());
@@ -199,9 +216,12 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    @Transactional
     public OrderDto approveOrder(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        Order order = orderRepository.findByIdWithDetails(orderId);
+        if (order == null) {
+            throw new ResourceNotFoundException("Order not found");
+        }
         
         if (order.getOrderStatus() != OrderStatus.PENDING) {
             throw new IllegalStateException("Only pending orders can be approved");
@@ -221,9 +241,12 @@ public class OrderService implements IOrderService {
     }
 
     @Override
+    @Transactional
     public OrderDto rejectOrder(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        Order order = orderRepository.findByIdWithDetails(orderId);
+        if (order == null) {
+            throw new ResourceNotFoundException("Order not found");
+        }
         
         if (order.getOrderStatus() != OrderStatus.PENDING) {
             throw new IllegalStateException("Only pending orders can be rejected");
