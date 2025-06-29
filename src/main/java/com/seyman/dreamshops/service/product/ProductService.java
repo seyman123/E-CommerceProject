@@ -108,14 +108,14 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    // @Cacheable(value = "productCache", key = "#id") // Temporarily disabled
+    @Cacheable(value = "productCache", key = "#id")
     public Product getProductById(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found!"));
     }
 
     @Override
-    // @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true) // Temporarily disabled
+    @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true)
     @Transactional
     public void deleteProductById(Long id) {
         // Check if product exists in any carts
@@ -137,7 +137,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    // @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true) // Temporarily disabled
+    @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true)
     @Transactional
     public Product updateProduct(ProductUpdateRequest request, Long productId) {
         return productRepository.findById(productId)
@@ -179,7 +179,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    // @Cacheable(value = "productCache", key = "'all-products'") // Disabled due to Redis ObjectMapper conflicts
+    @Cacheable(value = "productCache", key = "'all-products'")
     public List<Product> getAllProducts() {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:all:optimized";
@@ -208,7 +208,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    // @Cacheable(value = "categoryCache", key = "#category") // Disabled due to Redis ObjectMapper conflicts
+    @Cacheable(value = "categoryCache", key = "#category")
     public List<Product> getProductsByCategory(String category) {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category:optimized:" + category;
