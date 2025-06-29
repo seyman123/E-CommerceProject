@@ -10,6 +10,7 @@ import com.seyman.dreamshops.service.image.EnhancedImageService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,7 @@ public class ImageController {
     }
 
     @GetMapping("/image/{imageId}")
+    @Transactional(readOnly = true, timeout = 30)
     public ResponseEntity<byte[]> getImage(@PathVariable Long imageId) {
         try {
             Image image = imageService.getImageById(imageId);

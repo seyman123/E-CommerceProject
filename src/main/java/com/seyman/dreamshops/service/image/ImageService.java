@@ -27,7 +27,7 @@ public class ImageService implements IImageService {
     private final IProductService productService;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, timeout = 30)
     public Image getImageById(Long id) {
         return imageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("No image found with id: " + id));
