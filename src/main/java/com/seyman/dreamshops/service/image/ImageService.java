@@ -9,6 +9,7 @@ import com.seyman.dreamshops.service.product.IProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.sql.rowset.serial.SerialBlob;
@@ -26,6 +27,7 @@ public class ImageService implements IImageService {
     private final IProductService productService;
 
     @Override
+    @Transactional(readOnly = true)
     public Image getImageById(Long id) {
         return imageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("No image found with id: " + id));
