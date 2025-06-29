@@ -32,6 +32,7 @@ public class CartService implements ICartService{
     private final AtomicLong cartIdGenerator = new AtomicLong(0);
 
     @Override
+    @Transactional(readOnly = true)
     public Cart getCart(Long id) {
         Cart cart = cartRepository.findByIdWithItems(id);
         if (cart == null) {
@@ -62,12 +63,13 @@ public class CartService implements ICartService{
     }
 
     @Override
+    @Transactional
     public Cart initialNewCart(User user) {
         if (user == null || user.getId() == null) {
             throw new ResourceNotFoundException("User is null or has no ID");
         }
         
-        return Optional.ofNullable(this.getCartByUserId(user.getId()))
+        return Optional.ofNullable(cartRepository.findByUserIdWithItems(user.getId()))
                 .orElseGet(() -> {
                     Cart cart = new Cart();
                     cart.setUser(user);
@@ -76,9 +78,10 @@ public class CartService implements ICartService{
     }
 
     @Override
-    // @Cacheable(value = "cartCache", key = "#userId") // Temporarily disabled
+    @Transactional(readOnly = true)
+    // @Cacheable(value = "cartCache", key = "#userId") // Keep disabled - complex entity with lazy loading
     public Cart getCartByUserId(Long userId) {
-        Cart cart = cartRepository.findByUserId(userId);
+        Cart cart = cartRepository.findByUserIdWithItems(userId);
         
         if (cart != null) {
             // Update prices for all cart items in case of discount changes
@@ -115,23 +118,14 @@ public class CartService implements ICartService{
         cartDto.setCartId(cart.getId());
         cartDto.setTotalAmount(cart.getTotalAmount());
         
-        // Hibernate lazy loading collection'ını güvenli şekilde işle
-        Set<CartItemDto> cartItemDtos = null;
-        try {
-            if (cart.getItems() != null && !cart.getItems().isEmpty()) {
-                // Collection'ı force initialize et
-                cart.getItems().size(); // Lazy loading'i tetikle
-                
-                cartItemDtos = cart.getItems().stream()
-                        .map(this::convertCartItemToDto)
-                        .collect(Collectors.toSet());
-            } else {
-                cartItemDtos = Set.of(); // Empty set
-            }
-        } catch (Exception e) {
-            // Lazy loading hatası durumunda empty set döndür
-            System.err.println("Error converting cart items: " + e.getMessage());
-            cartItemDtos = Set.of();
+        // Items are eagerly loaded via JOIN FETCH, so no lazy loading issues
+        Set<CartItemDto> cartItemDtos;
+        if (cart.getItems() != null && !cart.getItems().isEmpty()) {
+            cartItemDtos = cart.getItems().stream()
+                    .map(this::convertCartItemToDto)
+                    .collect(Collectors.toSet());
+        } else {
+            cartItemDtos = Set.of(); // Empty set
         }
         
         cartDto.setItems(cartItemDtos);
