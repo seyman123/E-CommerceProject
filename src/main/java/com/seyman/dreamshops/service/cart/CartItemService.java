@@ -94,25 +94,37 @@ public class CartItemService implements ICartItemService {
     @Override
     @Transactional
     public void removeItemFromCart(Long cartId, Long productId) {
-        // Get fresh cart from database to avoid detached entity issues
-        Cart cart = cartRepository.findByIdWithItems(cartId);
-        if (cart == null) {
-            throw new ResourceNotFoundException("Cart not found with ID: " + cartId);
-        }
-        
-        Product product = productService.getProductById(productId);
-        CartItem cartItem = cartItemRepository.findByCartAndProduct(cart, product);
-        
-        if (cartItem != null) {
-            cartItemRepository.delete(cartItem);
+        try {
+            // Get fresh cart from database to avoid detached entity issues
+            Cart cart = cartRepository.findByIdWithItems(cartId);
+            if (cart == null) {
+                throw new ResourceNotFoundException("Cart not found with ID: " + cartId);
+            }
             
-            // Update cart total amount
-            BigDecimal totalAmount = cart.getItems().stream()
-                .filter(item -> !item.getId().equals(cartItem.getId())) // Exclude deleted item
-                .map(CartItem::getTotalPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-            cart.setTotalAmount(totalAmount);
-            cartRepository.save(cart);
+            Product product = productService.getProductById(productId);
+            CartItem cartItem = cartItemRepository.findByCartAndProduct(cart, product);
+            
+            if (cartItem != null) {
+                // Remove the item from cart's collection first
+                cart.getItems().remove(cartItem);
+                
+                // Delete the cart item from database
+                cartItemRepository.delete(cartItem);
+                
+                // Recalculate cart total amount from remaining items
+                BigDecimal totalAmount = cart.getItems().stream()
+                    .map(CartItem::getTotalPrice)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                cart.setTotalAmount(totalAmount);
+                cartRepository.save(cart);
+            } else {
+                throw new ResourceNotFoundException("Item not found in cart");
+            }
+        } catch (ResourceNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            e.printStackTrace(); // Log for debugging
+            throw new RuntimeException("Ürün sepetten çıkarılırken hata oluştu: " + e.getMessage(), e);
         }
     }
 

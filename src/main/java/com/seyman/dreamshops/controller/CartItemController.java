@@ -66,6 +66,9 @@ public class CartItemController {
             return ResponseEntity.ok(new ApiResponse("Remove Item Success", null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(NOT_FOUND).body(new ApiResponse(e.getMessage(), null));
+        } catch (Exception e) {
+            e.printStackTrace(); // Log for debugging
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.", null));
         }
     }
 
