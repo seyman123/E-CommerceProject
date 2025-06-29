@@ -11,6 +11,8 @@ import com.seyman.dreamshops.repository.CartItemRepository;
 import com.seyman.dreamshops.repository.CartRepository;
 import com.seyman.dreamshops.service.product.IProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,11 +47,12 @@ public class CartService implements ICartService{
 
     @Transactional
     @Override
-    public void clearCart(Long id) {
-        Cart cart = this.getCart(id);
-        cartItemRepository.deleteAllByCartId(id);
+    @CacheEvict(value = "cartCache", key = "#cartId")
+    public void clearCart(Long cartId) {
+        Cart cart = getCart(cartId);
+        cartItemRepository.deleteAllByCartId(cartId);
         cart.getItems().clear();
-        cartRepository.deleteById(id);
+        cartRepository.save(cart);
     }
 
     @Override
@@ -73,8 +76,9 @@ public class CartService implements ICartService{
     }
 
     @Override
+    @Cacheable(value = "cartCache", key = "#userId")
     public Cart getCartByUserId(Long userId) {
-        Cart cart = cartRepository.findByUserIdWithItems(userId);
+        Cart cart = cartRepository.findByUserId(userId);
         
         if (cart != null) {
             // Update prices for all cart items in case of discount changes

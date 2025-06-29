@@ -10,10 +10,14 @@ import com.seyman.dreamshops.requests.PasswordChangeRequest;
 import com.seyman.dreamshops.requests.UserUpdateRequest;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -26,12 +30,14 @@ public class UserService implements IUserService{
     private final PasswordEncoder passwordEncoder;
 
     @Override
+    @Cacheable(value = "users", key = "#userId")
     public UserDto getUserById(Long userId) {
         return userRepository.findById(userId).map(this::convertUserToDto)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
     }
 
     @Override
+    @CacheEvict(value = "users", key = "#request.email")
     public UserDto createUser(CreateUserRequest request) {
         return Optional.of(request).filter(user -> !userRepository.existsByEmail(request.getEmail())).map(req -> {
             User user = new User();
@@ -46,6 +52,7 @@ public class UserService implements IUserService{
     }
 
     @Override
+    @CachePut(value = "users", key = "#userId")
     public UserDto updateUser(UserUpdateRequest request, Long userId) {
         return userRepository.findById(userId).map(existingUser -> {
             existingUser.setFirstName(request.getFirstName());
@@ -64,6 +71,7 @@ public class UserService implements IUserService{
     }
 
     @Override
+    @CacheEvict(value = "users", key = "#userId")
     public void deleteUser(Long userId) {
         userRepository.findById(userId).ifPresentOrElse(userRepository :: delete, () -> {
             throw new ResourceNotFoundException("User not found!");
@@ -71,6 +79,7 @@ public class UserService implements IUserService{
     }
 
     @Override
+    @CachePut(value = "users", key = "#userId")
     public void changePassword(PasswordChangeRequest request, Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
@@ -118,6 +127,7 @@ public class UserService implements IUserService{
     }
 
     @Override
+    @Cacheable(value = "users", key = "#email")
     public UserDto getAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {

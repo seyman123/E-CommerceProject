@@ -24,6 +24,7 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
@@ -107,50 +108,42 @@ public class ProductService implements IProductService {
     }
 
     @Override
+    @Cacheable(value = "productCache", key = "#id")
     public Product getProductById(Long id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new ProductNotFoundException("Product Not Found!"));
+                .orElseThrow(() -> new ProductNotFoundException("Product not found!"));
     }
 
     @Override
+    @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true)
+    @Transactional
     public void deleteProductById(Long id) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new ProductNotFoundException("Product Not Found!"));
+        // Check if product exists in any carts
+        if (cartItemRepository.existsByProductId(id)) {
+            throw new IllegalStateException("Cannot delete product that is in users' carts");
+        }
         
-        // 1. Sipariş geçmişinde bu ürün varsa silmeye izin verme
+        // Check if product exists in any orders
         if (orderItemRepository.existsByProductId(id)) {
-            throw new IllegalStateException("Cannot delete product that has been ordered. Product is part of order history.");
+            throw new IllegalStateException("Cannot delete product that has been ordered");
         }
         
-        // 2. Ürüne ait sepet öğelerini sil (sepet öğeleri geçici olduğu için silinebilir)
-        cartItemRepository.deleteAllByProductId(id);
+        productRepository.findById(id).ifPresentOrElse(productRepository::delete, () -> {
+            throw new ProductNotFoundException("Product not found!");
+        });
         
-        // 3. Ürüne ait resimleri sil
-        List<Image> images = imageRepository.findByProductId(id);
-        if (!images.isEmpty()) {
-            imageRepository.deleteAll(images);
-        }
-        
-        // 4. Son olarak ürünü sil
-        productRepository.delete(product);
-        
-        // 5. Clear related caches
+        // Clear custom cache as well
         clearProductCaches();
-        log.info("Product deleted and caches cleared for product ID: {}", id);
     }
 
     @Override
+    @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true)
+    @Transactional
     public Product updateProduct(ProductUpdateRequest request, Long productId) {
-        Product updatedProduct = productRepository.findById(productId)
+        return productRepository.findById(productId)
                 .map(existingProduct -> updateExistingProduct(existingProduct, request))
                 .map(productRepository::save)
-                .orElseThrow(() -> new ProductNotFoundException("not found"));
-        
-        // Clear related caches
-        clearProductCaches();
-        log.info("Product updated and caches cleared for product ID: {}", productId);
-        
-        return updatedProduct;
+                .orElseThrow(() -> new ProductNotFoundException("Product not found!"));
     }
 
     private Product updateExistingProduct(Product existingProduct, ProductUpdateRequest request) {
@@ -186,7 +179,9 @@ public class ProductService implements IProductService {
     }
 
     @Override
+    @Cacheable(value = "productCache", key = "'all-products'")
     public List<Product> getAllProducts() {
+        // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:all:optimized";
         
         // Try to get from cache first (with proper casting)
@@ -213,7 +208,9 @@ public class ProductService implements IProductService {
     }
 
     @Override
+    @Cacheable(value = "categoryCache", key = "#category")
     public List<Product> getProductsByCategory(String category) {
+        // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category:optimized:" + category;
         
         // Try cache first (with proper casting)
@@ -255,7 +252,9 @@ public class ProductService implements IProductService {
     }
 
     @Override
+    @Cacheable(value = "productCache", key = "'search-' + #name")
     public List<Product> getProductsByNameContaining(String name) {
+        // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:search:optimized:" + name.toLowerCase();
         
         // Try cache first
@@ -282,7 +281,9 @@ public class ProductService implements IProductService {
     }
 
     @Override
+    @Cacheable(value = "productCache", key = "'category-search-' + #category + '-' + #search")
     public List<Product> getProductsByCategoryAndNameContaining(String category, String search) {
+        // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category_search:optimized:" + category.toLowerCase() + ":" + search.toLowerCase();
         
         // Try cache first (with proper casting)
