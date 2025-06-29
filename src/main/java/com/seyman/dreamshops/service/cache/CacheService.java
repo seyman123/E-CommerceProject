@@ -1,9 +1,8 @@
 package com.seyman.dreamshops.service.cache;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +16,9 @@ import java.util.concurrent.ConcurrentMap;
 public class CacheService {
 
     @Autowired(required = false)
-    private RedisTemplate<String, Object> redisTemplate;
+    private RedisTemplate<String, String> redisTemplate; // String-only Redis template
+    
+    private final ObjectMapper objectMapper = new ObjectMapper(); // Local ObjectMapper for this service only
     
     // Fallback in-memory cache when Redis is not available
     private final ConcurrentMap<String, CacheEntry> inMemoryCache = new ConcurrentHashMap<>();
@@ -25,9 +26,10 @@ public class CacheService {
     public void put(String key, Object value, Duration ttl) {
         try {
             if (redisTemplate != null) {
-                // Use Redis if available
-                redisTemplate.opsForValue().set(key, value, ttl);
-                log.debug("Cached value in Redis with key: {}", key);
+                // Convert object to JSON string for Redis storage
+                String jsonValue = objectMapper.writeValueAsString(value);
+                redisTemplate.opsForValue().set(key, jsonValue, ttl);
+                log.debug("Cached value in Redis (as JSON string) with key: {}", key);
             } else {
                 // Fall back to in-memory cache
                 long expireTime = System.currentTimeMillis() + ttl.toMillis();
@@ -36,28 +38,37 @@ public class CacheService {
             }
         } catch (Exception e) {
             log.warn("Failed to cache value with key {}: {}", key, e.getMessage());
+            // Fallback to in-memory cache if Redis fails
+            try {
+                long expireTime = System.currentTimeMillis() + ttl.toMillis();
+                inMemoryCache.put(key, new CacheEntry(value, expireTime));
+                log.debug("Fallback: Cached value in memory with key: {}", key);
+            } catch (Exception ex) {
+                log.error("Failed to cache in memory as well: {}", ex.getMessage());
+            }
         }
     }
 
     public <T> Optional<T> get(String key, Class<T> type) {
         try {
             if (redisTemplate != null) {
-                // Try Redis first
-                Object value = redisTemplate.opsForValue().get(key);
-                if (value != null && type.isInstance(value)) {
+                // Try Redis first - get JSON string and convert back to object
+                String jsonValue = redisTemplate.opsForValue().get(key);
+                if (jsonValue != null) {
+                    T value = objectMapper.readValue(jsonValue, type);
                     log.debug("Cache HIT in Redis for key: {}", key);
-                    return Optional.of(type.cast(value));
+                    return Optional.of(value);
                 }
-            } else {
-                // Check in-memory cache
-                CacheEntry entry = inMemoryCache.get(key);
-                if (entry != null && !entry.isExpired() && type.isInstance(entry.getValue())) {
-                    log.debug("Cache HIT in memory for key: {}", key);
-                    return Optional.of(type.cast(entry.getValue()));
-                } else if (entry != null && entry.isExpired()) {
-                    // Remove expired entry
-                    inMemoryCache.remove(key);
-                }
+            }
+            
+            // Check in-memory cache
+            CacheEntry entry = inMemoryCache.get(key);
+            if (entry != null && !entry.isExpired() && type.isInstance(entry.getValue())) {
+                log.debug("Cache HIT in memory for key: {}", key);
+                return Optional.of(type.cast(entry.getValue()));
+            } else if (entry != null && entry.isExpired()) {
+                // Remove expired entry
+                inMemoryCache.remove(key);
             }
             
             log.debug("Cache MISS for key: {}", key);
@@ -73,10 +84,9 @@ public class CacheService {
             if (redisTemplate != null) {
                 redisTemplate.delete(key);
                 log.debug("Deleted key from Redis: {}", key);
-            } else {
-                inMemoryCache.remove(key);
-                log.debug("Deleted key from memory: {}", key);
             }
+            inMemoryCache.remove(key);
+            log.debug("Deleted key from memory: {}", key);
         } catch (Exception e) {
             log.warn("Failed to delete cached value for key {}: {}", key, e.getMessage());
         }
@@ -90,14 +100,12 @@ public class CacheService {
                     redisTemplate.delete(keys);
                     log.debug("Deleted {} keys matching pattern: {}", keys.size(), pattern);
                 }
-            } else {
-                // For in-memory cache, remove keys matching pattern
-                inMemoryCache.keySet().removeIf(key -> key.matches(pattern.replace("*", ".*")));
-                log.debug("Deleted keys matching pattern from memory: {}", pattern);
             }
+            // For in-memory cache, remove keys matching pattern
+            inMemoryCache.keySet().removeIf(key -> key.matches(pattern.replace("*", ".*")));
+            log.debug("Deleted keys matching pattern from memory: {}", pattern);
         } catch (Exception e) {
             log.warn("Failed to delete cached values for pattern {}: {}", pattern, e.getMessage());
-
         }
     }
 

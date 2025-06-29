@@ -108,14 +108,14 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "productCache", key = "#id")
+    // @Cacheable(value = "productCache", key = "#id") // Disabled: Using String-only Redis to avoid JSON conflicts
     public Product getProductById(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found!"));
     }
 
     @Override
-    @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true)
+    // @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true) // Disabled: Using String-only Redis
     @Transactional
     public void deleteProductById(Long id) {
         // Check if product exists in any carts
@@ -137,7 +137,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true)
+    // @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true) // Disabled: Using String-only Redis
     @Transactional
     public Product updateProduct(ProductUpdateRequest request, Long productId) {
         return productRepository.findById(productId)
@@ -179,7 +179,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "productCache", key = "'all-products'")
+    // @Cacheable(value = "productCache", key = "'all-products'") // Disabled: Using String-only Redis to avoid JSON conflicts
     public List<Product> getAllProducts() {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:all:optimized";
@@ -208,7 +208,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "categoryCache", key = "#category")
+    // @Cacheable(value = "categoryCache", key = "#category") // Disabled: Using String-only Redis to avoid JSON conflicts
     public List<Product> getProductsByCategory(String category) {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category:optimized:" + category;
