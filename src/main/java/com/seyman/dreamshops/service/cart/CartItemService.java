@@ -9,6 +9,7 @@ import com.seyman.dreamshops.repository.CartRepository;
 import com.seyman.dreamshops.service.product.IProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -33,6 +34,7 @@ public class CartItemService implements ICartItemService {
     }
 
     @Override
+    @Transactional
     public void addItemToCart(Long cartId, Long productId, int quantity) {
         if (cartId == null) {
             throw new ResourceNotFoundException("Cart ID cannot be null");
@@ -45,7 +47,8 @@ public class CartItemService implements ICartItemService {
         }
         
         try {
-            Cart cart = cartService.getCart(cartId);
+            // Get fresh cart from database to avoid detached entity issues
+            Cart cart = cartRepository.findByIdWithItems(cartId);
             if (cart == null) {
                 throw new ResourceNotFoundException("Cart not found with ID: " + cartId);
             }
@@ -60,17 +63,25 @@ public class CartItemService implements ICartItemService {
             // Eğer item zaten sepette varsa quantity arttır
             if (cartItem != null) {
                 cartItem.setQuantity(cartItem.getQuantity() + quantity);
+                cartItem.setTotalPrice();
+                cartItemRepository.save(cartItem);
             } else {
                 // Yeni item oluştur
                 cartItem = new CartItem();
                 cartItem.setCart(cart);
                 cartItem.setProduct(product);
                 cartItem.setQuantity(quantity);
-                cartItem.setUnitPrice(product.getPrice());
+                cartItem.setUnitPrice(product.getEffectivePrice()); // Use effective price with discounts
+                cartItem.setTotalPrice();
+                cartItemRepository.save(cartItem);
             }
             
-            cartItem.setTotalPrice();
-            cartItemRepository.save(cartItem);
+            // Update cart total amount
+            BigDecimal totalAmount = cart.getItems().stream()
+                .map(CartItem::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            cart.setTotalAmount(totalAmount);
+            cartRepository.save(cart);
             
         } catch (ResourceNotFoundException e) {
             throw e; // Re-throw ResourceNotFoundException as is
@@ -81,23 +92,39 @@ public class CartItemService implements ICartItemService {
     }
 
     @Override
+    @Transactional
     public void removeItemFromCart(Long cartId, Long productId) {
-        Cart cart = cartService.getCart(cartId);
+        // Get fresh cart from database to avoid detached entity issues
+        Cart cart = cartRepository.findByIdWithItems(cartId);
+        if (cart == null) {
+            throw new ResourceNotFoundException("Cart not found with ID: " + cartId);
+        }
+        
         Product product = productService.getProductById(productId);
         CartItem cartItem = cartItemRepository.findByCartAndProduct(cart, product);
         
         if (cartItem != null) {
             cartItemRepository.delete(cartItem);
+            
+            // Update cart total amount
+            BigDecimal totalAmount = cart.getItems().stream()
+                .filter(item -> !item.getId().equals(cartItem.getId())) // Exclude deleted item
+                .map(CartItem::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            cart.setTotalAmount(totalAmount);
+            cartRepository.save(cart);
         }
     }
 
     @Override
+    @Transactional
     public void updateItemQuantity(Long cartId, Long productId, int quantity) {
-        // Debug logs removed for production
-        
         try {
-            Cart cart = cartService.getCart(cartId);
-            // Debug logs removed for production
+            // Get fresh cart from database to avoid detached entity issues
+            Cart cart = cartRepository.findByIdWithItems(cartId);
+            if (cart == null) {
+                throw new ResourceNotFoundException("Cart not found with ID: " + cartId);
+            }
             
             Optional<CartItem> optionalItem = cart.getItems().stream()
                 .filter(item -> item.getProduct().getId().equals(productId))
@@ -105,18 +132,22 @@ public class CartItemService implements ICartItemService {
             
             if (optionalItem.isPresent()) {
                 CartItem item = optionalItem.get();
-                // Debug logs removed for production
                 item.setQuantity(quantity);
                 item.setTotalPrice();
-                // Debug logs removed for production
+                cartItemRepository.save(item);
+                
+                // Update cart total amount
+                BigDecimal totalAmount = cart.getItems().stream()
+                    .map(CartItem::getTotalPrice)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                cart.setTotalAmount(totalAmount);
+                cartRepository.save(cart);
             } else {
-                // Debug logs removed for production
                 throw new ResourceNotFoundException("Ürün sepette bulunamadı!");
             }
             
-            // Sepeti kaydet
-            cartRepository.save(cart);
-            // Debug logs removed for production
+        } catch (ResourceNotFoundException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("Miktar güncellenirken hata oluştu: " + e.getMessage());
         }

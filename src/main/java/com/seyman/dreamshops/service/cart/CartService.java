@@ -35,8 +35,12 @@ public class CartService implements ICartService{
         if (cart == null) {
             throw new ResourceNotFoundException("Cart not found!");
         }
-        cart.setTotalAmount(cart.getTotalAmount());
-        return cartRepository.save(cart);
+        // Calculate and set total amount without saving (causes detached entity issue)
+        BigDecimal totalAmount = cart.getItems().stream()
+            .map(CartItem::getTotalPrice)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        cart.setTotalAmount(totalAmount);
+        return cart;
     }
 
     @Transactional
