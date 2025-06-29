@@ -47,7 +47,7 @@ public class CartService implements ICartService{
 
     @Transactional
     @Override
-    @CacheEvict(value = "cartCache", key = "#cartId")
+    // @CacheEvict(value = "cartCache", key = "#cartId") // Temporarily disabled
     public void clearCart(Long cartId) {
         Cart cart = getCart(cartId);
         cartItemRepository.deleteAllByCartId(cartId);
@@ -76,7 +76,7 @@ public class CartService implements ICartService{
     }
 
     @Override
-    @Cacheable(value = "cartCache", key = "#userId")
+    // @Cacheable(value = "cartCache", key = "#userId") // Temporarily disabled
     public Cart getCartByUserId(Long userId) {
         Cart cart = cartRepository.findByUserId(userId);
         

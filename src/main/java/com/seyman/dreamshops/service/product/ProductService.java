@@ -108,14 +108,14 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "productCache", key = "#id")
+    // @Cacheable(value = "productCache", key = "#id") // Temporarily disabled
     public Product getProductById(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found!"));
     }
 
     @Override
-    @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true)
+    // @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true) // Temporarily disabled
     @Transactional
     public void deleteProductById(Long id) {
         // Check if product exists in any carts
@@ -137,7 +137,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true)
+    // @CacheEvict(value = {"productCache", "categoryCache"}, allEntries = true) // Temporarily disabled
     @Transactional
     public Product updateProduct(ProductUpdateRequest request, Long productId) {
         return productRepository.findById(productId)
@@ -179,7 +179,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "productCache", key = "'all-products'")
+    // @Cacheable(value = "productCache", key = "'all-products'") // Temporarily disabled
     public List<Product> getAllProducts() {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:all:optimized";
@@ -208,7 +208,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "categoryCache", key = "#category")
+    // @Cacheable(value = "categoryCache", key = "#category") // Temporarily disabled
     public List<Product> getProductsByCategory(String category) {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category:optimized:" + category;
@@ -252,7 +252,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "productCache", key = "'search-' + #name")
+    // @Cacheable(value = "productCache", key = "'search-' + #name") // Temporarily disabled
     public List<Product> getProductsByNameContaining(String name) {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:search:optimized:" + name.toLowerCase();
@@ -281,7 +281,7 @@ public class ProductService implements IProductService {
     }
 
     @Override
-    @Cacheable(value = "productCache", key = "'category-search-' + #category + '-' + #search")
+    // @Cacheable(value = "productCache", key = "'category-search-' + #category + '-' + #search") // Temporarily disabled
     public List<Product> getProductsByCategoryAndNameContaining(String category, String search) {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category_search:optimized:" + category.toLowerCase() + ":" + search.toLowerCase();

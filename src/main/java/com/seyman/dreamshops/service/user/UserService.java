@@ -30,14 +30,14 @@ public class UserService implements IUserService{
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    @Cacheable(value = "users", key = "#userId")
+    // @Cacheable(value = "users", key = "#userId") // Temporarily disabled
     public UserDto getUserById(Long userId) {
         return userRepository.findById(userId).map(this::convertUserToDto)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
     }
 
     @Override
-    @CacheEvict(value = "users", key = "#request.email")
+    // @CacheEvict(value = "users", key = "#request.email") // Temporarily disabled
     public UserDto createUser(CreateUserRequest request) {
         return Optional.of(request).filter(user -> !userRepository.existsByEmail(request.getEmail())).map(req -> {
             User user = new User();
@@ -52,7 +52,7 @@ public class UserService implements IUserService{
     }
 
     @Override
-    @CachePut(value = "users", key = "#userId")
+    // @CachePut(value = "users", key = "#userId") // Temporarily disabled
     public UserDto updateUser(UserUpdateRequest request, Long userId) {
         return userRepository.findById(userId).map(existingUser -> {
             existingUser.setFirstName(request.getFirstName());
@@ -71,7 +71,7 @@ public class UserService implements IUserService{
     }
 
     @Override
-    @CacheEvict(value = "users", key = "#userId")
+    // @CacheEvict(value = "users", key = "#userId") // Temporarily disabled
     public void deleteUser(Long userId) {
         userRepository.findById(userId).ifPresentOrElse(userRepository :: delete, () -> {
             throw new ResourceNotFoundException("User not found!");
@@ -79,7 +79,7 @@ public class UserService implements IUserService{
     }
 
     @Override
-    @CachePut(value = "users", key = "#userId")
+    // @CachePut(value = "users", key = "#userId") // Temporarily disabled
     public void changePassword(PasswordChangeRequest request, Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
@@ -127,7 +127,7 @@ public class UserService implements IUserService{
     }
 
     @Override
-    @Cacheable(value = "users", key = "#email")
+    // @Cacheable(value = "users", key = "#email") // Temporarily disabled
     public UserDto getAuthenticatedUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
