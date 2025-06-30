@@ -19,7 +19,7 @@ public class CorsConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
             "http://localhost:3000", // React dev server
             "http://localhost:3001", // Alternative React port
-            "https://dream-shops-frontend-jivk.vercel.app/" // Production domain
+            "https://dream-shops-frontend.vercel.app/" // Production domain
         ));
         
         // Allow specific HTTP methods
