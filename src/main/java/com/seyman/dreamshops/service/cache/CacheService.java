@@ -1,7 +1,10 @@
 package com.seyman.dreamshops.service.cache;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -19,10 +22,19 @@ public class CacheService {
     @Autowired(required = false)
     private RedisTemplate<String, String> redisTemplate; // String-only Redis template
     
-    private final ObjectMapper objectMapper = new ObjectMapper(); // Local ObjectMapper for this service only
+    private final ObjectMapper objectMapper; // Local ObjectMapper for this service only
     
     // Fallback in-memory cache when Redis is not available
     private final ConcurrentMap<String, CacheEntry> inMemoryCache = new ConcurrentHashMap<>();
+    
+    public CacheService() {
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.registerModule(new JavaTimeModule());
+        this.objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        // Configure Jackson to ignore unknown properties during deserialization
+        // This fixes issues with computed fields like effectivePrice and savings
+        this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
 
     public void put(String key, Object value, Duration ttl) {
         try {
@@ -136,7 +148,7 @@ public class CacheService {
                 var keys = redisTemplate.keys(pattern);
                 if (keys != null && !keys.isEmpty()) {
                     redisTemplate.delete(keys);
-                    log.debug("Deleted {} keys matching pattern: {}", keys.size(), pattern);
+                    log.info("Deleted {} keys matching pattern: {}", keys.size(), pattern);
                 }
             }
             // For in-memory cache, remove keys matching pattern
@@ -145,6 +157,12 @@ public class CacheService {
         } catch (Exception e) {
             log.warn("Failed to delete cached values for pattern {}: {}", pattern, e.getMessage());
         }
+    }
+    
+    public void clearProductCaches() {
+        log.info("Clearing all product-related caches due to schema changes...");
+        deleteByPattern("products:*");
+        log.info("Product caches cleared successfully");
     }
 
     // Inner class for in-memory cache entries

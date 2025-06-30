@@ -7,6 +7,7 @@ import com.seyman.dreamshops.model.Product;
 import com.seyman.dreamshops.requests.AddProductRequest;
 import com.seyman.dreamshops.requests.ProductUpdateRequest;
 import com.seyman.dreamshops.response.ApiResponse;
+import com.seyman.dreamshops.service.cache.CacheService;
 import com.seyman.dreamshops.service.product.IProductService;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.weaver.ast.Not;
@@ -25,6 +26,7 @@ import static org.springframework.http.HttpStatus.*;
 public class ProductController {
 
     private final IProductService productService;
+    private final CacheService cacheService;
 
     @GetMapping("/all")
     public ResponseEntity<ApiResponse> getAllProducts() {
@@ -326,6 +328,17 @@ public class ProductController {
             return ResponseEntity.ok(new ApiResponse("Product count!", products.size()));
         } catch (Exception e) {
             return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Error: " + e.getMessage(), null));
+        }
+    }
+    
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PostMapping("/admin/clear-cache")
+    public ResponseEntity<ApiResponse> clearProductCache() {
+        try {
+            cacheService.clearProductCaches();
+            return ResponseEntity.ok(new ApiResponse("Product cache cleared successfully!", null));
+        } catch (Exception e) {
+            return ResponseEntity.status(INTERNAL_SERVER_ERROR).body(new ApiResponse("Error clearing cache: " + e.getMessage(), null));
         }
     }
 }
