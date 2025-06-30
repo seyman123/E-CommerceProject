@@ -421,22 +421,114 @@ public class ProductService implements IProductService {
     // Paginated methods implementation with optimization
     @Override
     public Page<Product> getAllProducts(Pageable pageable) {
-        return productRepository.findAllWithImagesAndCategory(pageable);
+        // Use fallback to CacheService for paginated results
+        String cacheKey = "products:paginated:optimized:" + pageable.getPageNumber() + ":" + pageable.getPageSize() + ":" + pageable.getSort().toString();
+        
+        // Try cache first
+        try {
+            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
+            if (cachedValue.isPresent() && cachedValue.get() instanceof Page) {
+                @SuppressWarnings("unchecked")
+                Page<Product> cachedPage = (Page<Product>) cachedValue.get();
+                log.info("Cache HIT for getAllProducts paginated (optimized) - page: {}", pageable.getPageNumber());
+                return cachedPage;
+            }
+        } catch (Exception e) {
+            log.warn("Cache get failed for paginated products, falling back to database: {}", e.getMessage());
+        }
+        
+        // Cache miss - get from database
+        log.info("Cache MISS for getAllProducts paginated (optimized) - page: {} - fetching from database", pageable.getPageNumber());
+        Page<Product> products = productRepository.findAllWithImagesAndCategory(pageable);
+        
+        // Cache paginated results for 10 minutes
+        cacheService.put(cacheKey, products, Duration.ofMinutes(10));
+        
+        return products;
     }
 
     @Override
     public Page<Product> getProductsByCategory(String category, Pageable pageable) {
-        return productRepository.findByCategoryNameWithImagesAndCategory(category, pageable);
+        // Use fallback to CacheService for paginated category results
+        String cacheKey = "products:category_paginated:optimized:" + category.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize() + ":" + pageable.getSort().toString();
+        
+        // Try cache first
+        try {
+            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
+            if (cachedValue.isPresent() && cachedValue.get() instanceof Page) {
+                @SuppressWarnings("unchecked")
+                Page<Product> cachedPage = (Page<Product>) cachedValue.get();
+                log.info("Cache HIT for getProductsByCategory paginated (optimized) - category: {}, page: {}", category, pageable.getPageNumber());
+                return cachedPage;
+            }
+        } catch (Exception e) {
+            log.warn("Cache get failed for paginated category products {}, falling back to database: {}", category, e.getMessage());
+        }
+        
+        // Cache miss - get from database
+        log.info("Cache MISS for getProductsByCategory paginated (optimized) - category: {}, page: {} - fetching from database", category, pageable.getPageNumber());
+        Page<Product> products = productRepository.findByCategoryNameWithImagesAndCategory(category, pageable);
+        
+        // Cache paginated category results for 10 minutes
+        cacheService.put(cacheKey, products, Duration.ofMinutes(10));
+        
+        return products;
     }
 
     @Override
     public Page<Product> getProductsByNameContaining(String search, Pageable pageable) {
-        return productRepository.findByNameContainingWithImagesAndCategory(search, pageable);
+        // Use fallback to CacheService for paginated search results
+        String cacheKey = "products:search_paginated:optimized:" + search.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize() + ":" + pageable.getSort().toString();
+        
+        // Try cache first
+        try {
+            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
+            if (cachedValue.isPresent() && cachedValue.get() instanceof Page) {
+                @SuppressWarnings("unchecked")
+                Page<Product> cachedPage = (Page<Product>) cachedValue.get();
+                log.info("Cache HIT for getProductsByNameContaining paginated (optimized) - search: {}, page: {}", search, pageable.getPageNumber());
+                return cachedPage;
+            }
+        } catch (Exception e) {
+            log.warn("Cache get failed for paginated search products {}, falling back to database: {}", search, e.getMessage());
+        }
+        
+        // Cache miss - get from database
+        log.info("Cache MISS for getProductsByNameContaining paginated (optimized) - search: {}, page: {} - fetching from database", search, pageable.getPageNumber());
+        Page<Product> products = productRepository.findByNameContainingWithImagesAndCategory(search, pageable);
+        
+        // Cache paginated search results for 10 minutes
+        cacheService.put(cacheKey, products, Duration.ofMinutes(10));
+        
+        return products;
     }
 
     @Override
     public Page<Product> getProductsByCategoryAndNameContaining(String category, String search, Pageable pageable) {
-        return productRepository.findByCategoryNameAndNameContainingWithImagesAndCategory(category, search, pageable);
+        // Use fallback to CacheService for paginated category+search results
+        String cacheKey = "products:category_search_paginated:optimized:" + category.toLowerCase() + ":" + search.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize() + ":" + pageable.getSort().toString();
+        
+        // Try cache first
+        try {
+            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
+            if (cachedValue.isPresent() && cachedValue.get() instanceof Page) {
+                @SuppressWarnings("unchecked")
+                Page<Product> cachedPage = (Page<Product>) cachedValue.get();
+                log.info("Cache HIT for getProductsByCategoryAndNameContaining paginated (optimized) - category: {}, search: {}, page: {}", category, search, pageable.getPageNumber());
+                return cachedPage;
+            }
+        } catch (Exception e) {
+            log.warn("Cache get failed for paginated category+search products {}-{}, falling back to database: {}", category, search, e.getMessage());
+        }
+        
+        // Cache miss - get from database
+        log.info("Cache MISS for getProductsByCategoryAndNameContaining paginated (optimized) - category: {}, search: {}, page: {} - fetching from database", category, search, pageable.getPageNumber());
+        Page<Product> products = productRepository.findByCategoryNameAndNameContainingWithImagesAndCategory(category, search, pageable);
+        
+        // Cache paginated category+search results for 10 minutes
+        cacheService.put(cacheKey, products, Duration.ofMinutes(10));
+        
+        return products;
     }
 
     private void clearProductCaches() {
