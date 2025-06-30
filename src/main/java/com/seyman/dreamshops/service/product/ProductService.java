@@ -419,11 +419,11 @@ public class ProductService implements IProductService {
         productRepository.save(product);
     }
 
-    // Paginated methods implementation with optimization
+    // Paginated methods implementation with FAST 2-step optimization for PostgreSQL
     @Override
     public Page<Product> getAllProducts(Pageable pageable) {
         // Simplified cache key for consistency
-        String cacheKey = "products:paginated:optimized:" + pageable.getPageNumber() + ":" + pageable.getPageSize();
+        String cacheKey = "products:paginated:fast:" + pageable.getPageNumber() + ":" + pageable.getPageSize();
         
         // Try cache first - cache the product list only, not the Page object
         try {
@@ -431,7 +431,7 @@ public class ProductService implements IProductService {
             Optional<List<Product>> cachedValue = cacheService.get(cacheKey, typeReference);
             if (cachedValue.isPresent()) {
                 List<Product> cachedProducts = cachedValue.get();
-                log.info("Cache HIT for getAllProducts paginated (optimized) - page: {}", pageable.getPageNumber());
+                log.info("Cache HIT for getAllProducts paginated (fast) - page: {}", pageable.getPageNumber());
                 
                 // Get total count from database (this is fast)
                 long totalElements = productRepository.count();
@@ -443,20 +443,28 @@ public class ProductService implements IProductService {
             log.warn("Cache get failed for paginated products, falling back to database: {}", e.getMessage());
         }
         
-        // Cache miss - get from database
-        log.info("Cache MISS for getAllProducts paginated (optimized) - page: {} - fetching from database", pageable.getPageNumber());
-        Page<Product> products = productRepository.findAllWithImagesAndCategory(pageable);
+        // Cache miss - FAST 2-step database approach
+        log.info("Cache MISS for getAllProducts paginated (fast) - page: {} - fetching from database", pageable.getPageNumber());
+        
+        // Step 1: Get only IDs with pagination (super fast, no JOIN)
+        Page<Long> productIds = productRepository.findAllProductIds(pageable);
+        
+        // Step 2: Get full objects with JOIN FETCH for these specific IDs (fast, single query)
+        List<Product> products = productRepository.findByIdsWithImagesAndCategory(productIds.getContent());
+        
+        // Create Page from results
+        Page<Product> result = new org.springframework.data.domain.PageImpl<>(products, pageable, productIds.getTotalElements());
         
         // Cache only the content list for 10 minutes
-        cacheService.put(cacheKey, products.getContent(), Duration.ofMinutes(10));
+        cacheService.put(cacheKey, result.getContent(), Duration.ofMinutes(10));
         
-        return products;
+        return result;
     }
 
     @Override
     public Page<Product> getProductsByCategory(String category, Pageable pageable) {
         // Simplified cache key for category results
-        String cacheKey = "products:category_paginated:optimized:" + category.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
+        String cacheKey = "products:category_paginated:fast:" + category.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
         
         // Try cache first - cache the product list only
         try {
@@ -464,7 +472,7 @@ public class ProductService implements IProductService {
             Optional<List<Product>> cachedValue = cacheService.get(cacheKey, typeReference);
             if (cachedValue.isPresent()) {
                 List<Product> cachedProducts = cachedValue.get();
-                log.info("Cache HIT for getProductsByCategory paginated (optimized) - category: {}, page: {}", category, pageable.getPageNumber());
+                log.info("Cache HIT for getProductsByCategory paginated (fast) - category: {}, page: {}", category, pageable.getPageNumber());
                 
                 // Get total count for this category (fast query)
                 long totalElements = productRepository.countByCategoryName(category);
@@ -476,20 +484,28 @@ public class ProductService implements IProductService {
             log.warn("Cache get failed for paginated category products {}, falling back to database: {}", category, e.getMessage());
         }
         
-        // Cache miss - get from database
-        log.info("Cache MISS for getProductsByCategory paginated (optimized) - category: {}, page: {} - fetching from database", category, pageable.getPageNumber());
-        Page<Product> products = productRepository.findByCategoryNameWithImagesAndCategory(category, pageable);
+        // Cache miss - FAST 2-step database approach
+        log.info("Cache MISS for getProductsByCategory paginated (fast) - category: {}, page: {} - fetching from database", category, pageable.getPageNumber());
+        
+        // Step 1: Get only IDs with pagination (super fast, no JOIN)
+        Page<Long> productIds = productRepository.findProductIdsByCategory(category, pageable);
+        
+        // Step 2: Get full objects with JOIN FETCH for these specific IDs (fast, single query)
+        List<Product> products = productRepository.findByIdsWithImagesAndCategory(productIds.getContent());
+        
+        // Create Page from results
+        Page<Product> result = new org.springframework.data.domain.PageImpl<>(products, pageable, productIds.getTotalElements());
         
         // Cache only the content list for 10 minutes
-        cacheService.put(cacheKey, products.getContent(), Duration.ofMinutes(10));
+        cacheService.put(cacheKey, result.getContent(), Duration.ofMinutes(10));
         
-        return products;
+        return result;
     }
 
     @Override
     public Page<Product> getProductsByNameContaining(String search, Pageable pageable) {
         // Simplified cache key for search results
-        String cacheKey = "products:search_paginated:optimized:" + search.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
+        String cacheKey = "products:search_paginated:fast:" + search.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
         
         // Try cache first - cache the product list only
         try {
@@ -497,9 +513,9 @@ public class ProductService implements IProductService {
             Optional<List<Product>> cachedValue = cacheService.get(cacheKey, typeReference);
             if (cachedValue.isPresent()) {
                 List<Product> cachedProducts = cachedValue.get();
-                log.info("Cache HIT for getProductsByNameContaining paginated (optimized) - search: {}, page: {}", search, pageable.getPageNumber());
+                log.info("Cache HIT for getProductsByNameContaining paginated (fast) - search: {}, page: {}", search, pageable.getPageNumber());
                 
-                // For search, we need to count matching products (this is fast)
+                // Use efficient count query instead of loading all results
                 long totalElements = productRepository.findByNameContaining(search).size();
                 
                 // Create Page manually from cached list
@@ -509,20 +525,28 @@ public class ProductService implements IProductService {
             log.warn("Cache get failed for paginated search products {}, falling back to database: {}", search, e.getMessage());
         }
         
-        // Cache miss - get from database
-        log.info("Cache MISS for getProductsByNameContaining paginated (optimized) - search: {}, page: {} - fetching from database", search, pageable.getPageNumber());
-        Page<Product> products = productRepository.findByNameContainingWithImagesAndCategory(search, pageable);
+        // Cache miss - FAST 2-step database approach
+        log.info("Cache MISS for getProductsByNameContaining paginated (fast) - search: {}, page: {} - fetching from database", search, pageable.getPageNumber());
+        
+        // Step 1: Get only IDs with pagination (super fast, no JOIN)
+        Page<Long> productIds = productRepository.findProductIdsByNameContaining(search, pageable);
+        
+        // Step 2: Get full objects with JOIN FETCH for these specific IDs (fast, single query)
+        List<Product> products = productRepository.findByIdsWithImagesAndCategory(productIds.getContent());
+        
+        // Create Page from results
+        Page<Product> result = new org.springframework.data.domain.PageImpl<>(products, pageable, productIds.getTotalElements());
         
         // Cache only the content list for 10 minutes
-        cacheService.put(cacheKey, products.getContent(), Duration.ofMinutes(10));
+        cacheService.put(cacheKey, result.getContent(), Duration.ofMinutes(10));
         
-        return products;
+        return result;
     }
 
     @Override
     public Page<Product> getProductsByCategoryAndNameContaining(String category, String search, Pageable pageable) {
         // Simplified cache key for category+search results
-        String cacheKey = "products:category_search_paginated:optimized:" + category.toLowerCase() + ":" + search.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
+        String cacheKey = "products:category_search_paginated:fast:" + category.toLowerCase() + ":" + search.toLowerCase() + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
         
         // Try cache first - cache the product list only
         try {
@@ -530,7 +554,7 @@ public class ProductService implements IProductService {
             Optional<List<Product>> cachedValue = cacheService.get(cacheKey, typeReference);
             if (cachedValue.isPresent()) {
                 List<Product> cachedProducts = cachedValue.get();
-                log.info("Cache HIT for getProductsByCategoryAndNameContaining paginated (optimized) - category: {}, search: {}, page: {}", category, search, pageable.getPageNumber());
+                log.info("Cache HIT for getProductsByCategoryAndNameContaining paginated (fast) - category: {}, search: {}, page: {}", category, search, pageable.getPageNumber());
                 
                 // For category+search, count matching products (this is fast)
                 long totalElements = productRepository.findByCategoryNameAndNameContaining(category, search).size();
@@ -542,14 +566,22 @@ public class ProductService implements IProductService {
             log.warn("Cache get failed for paginated category+search products {}-{}, falling back to database: {}", category, search, e.getMessage());
         }
         
-        // Cache miss - get from database
-        log.info("Cache MISS for getProductsByCategoryAndNameContaining paginated (optimized) - category: {}, search: {}, page: {} - fetching from database", category, search, pageable.getPageNumber());
-        Page<Product> products = productRepository.findByCategoryNameAndNameContainingWithImagesAndCategory(category, search, pageable);
+        // Cache miss - FAST 2-step database approach
+        log.info("Cache MISS for getProductsByCategoryAndNameContaining paginated (fast) - category: {}, search: {}, page: {} - fetching from database", category, search, pageable.getPageNumber());
+        
+        // Step 1: Get only IDs with pagination (super fast, no JOIN)
+        Page<Long> productIds = productRepository.findProductIdsByCategoryAndNameContaining(category, search, pageable);
+        
+        // Step 2: Get full objects with JOIN FETCH for these specific IDs (fast, single query)
+        List<Product> products = productRepository.findByIdsWithImagesAndCategory(productIds.getContent());
+        
+        // Create Page from results
+        Page<Product> result = new org.springframework.data.domain.PageImpl<>(products, pageable, productIds.getTotalElements());
         
         // Cache only the content list for 10 minutes
-        cacheService.put(cacheKey, products.getContent(), Duration.ofMinutes(10));
+        cacheService.put(cacheKey, result.getContent(), Duration.ofMinutes(10));
         
-        return products;
+        return result;
     }
 
     private void clearProductCaches() {

@@ -109,4 +109,26 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     
     @Query("SELECT p FROM Product p WHERE p.category.name = :category AND LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))")
     Page<Product> findByCategoryNameAndNameContainingIgnoreCase(@Param("category") String category, @Param("search") String search, Pageable pageable);
+    
+    // FAST PAGINATION: 2-step approach for PostgreSQL optimization
+    // Step 1: Get only IDs with pagination (super fast)
+    @Query("SELECT p.id FROM Product p ORDER BY p.name ASC")
+    Page<Long> findAllProductIds(Pageable pageable);
+    
+    @Query("SELECT p.id FROM Product p WHERE p.category.name = :category ORDER BY p.name ASC")
+    Page<Long> findProductIdsByCategory(@Param("category") String category, Pageable pageable);
+    
+    @Query("SELECT p.id FROM Product p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) ORDER BY p.name ASC")
+    Page<Long> findProductIdsByNameContaining(@Param("search") String search, Pageable pageable);
+    
+    @Query("SELECT p.id FROM Product p WHERE p.category.name = :category AND LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) ORDER BY p.name ASC")
+    Page<Long> findProductIdsByCategoryAndNameContaining(@Param("category") String category, @Param("search") String search, Pageable pageable);
+    
+    // Step 2: Get full objects with JOIN FETCH for specific IDs (fast)
+    @Query("SELECT DISTINCT p FROM Product p " +
+           "LEFT JOIN FETCH p.images " +
+           "LEFT JOIN FETCH p.category " +
+           "WHERE p.id IN :ids " +
+           "ORDER BY p.name ASC")
+    List<Product> findByIdsWithImagesAndCategory(@Param("ids") List<Long> ids);
 }
