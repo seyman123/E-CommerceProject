@@ -3,15 +3,17 @@ package com.seyman.dreamshops.controller;
 import com.seyman.dreamshops.data.DataInitializer;
 import com.seyman.dreamshops.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("${api.prefix}/data")
-@RequiredArgsConstructor
+//@RequiredArgsConstructor
 public class DataController {
-    
-    private final DataInitializer dataInitializer;
+
+    @Autowired(required = false)
+    private DataInitializer dataInitializer;
     
     @PostMapping("/initialize")
     public ResponseEntity<ApiResponse> initializeData() {
