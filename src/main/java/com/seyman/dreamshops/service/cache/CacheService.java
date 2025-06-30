@@ -1,5 +1,6 @@
 package com.seyman.dreamshops.service.cache;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,6 +76,43 @@ public class CacheService {
             return Optional.empty();
         } catch (Exception e) {
             log.warn("Failed to get cached value for key {}: {}", key, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public <T> Optional<T> get(String key, TypeReference<T> typeReference) {
+        try {
+            if (redisTemplate != null) {
+                // Try Redis first - get JSON string and convert back to object with proper generic type info
+                String jsonValue = redisTemplate.opsForValue().get(key);
+                if (jsonValue != null) {
+                    T value = objectMapper.readValue(jsonValue, typeReference);
+                    log.debug("Cache HIT in Redis for key: {} with TypeReference", key);
+                    return Optional.of(value);
+                }
+            }
+            
+            // For in-memory cache, try to cast if possible
+            CacheEntry entry = inMemoryCache.get(key);
+            if (entry != null && !entry.isExpired()) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    T value = (T) entry.getValue();
+                    log.debug("Cache HIT in memory for key: {} with TypeReference", key);
+                    return Optional.of(value);
+                } catch (ClassCastException e) {
+                    log.debug("Type cast failed for in-memory cache, removing entry: {}", key);
+                    inMemoryCache.remove(key);
+                }
+            } else if (entry != null && entry.isExpired()) {
+                // Remove expired entry
+                inMemoryCache.remove(key);
+            }
+            
+            log.debug("Cache MISS for key: {} with TypeReference", key);
+            return Optional.empty();
+        } catch (Exception e) {
+            log.warn("Failed to get cached value for key {} with TypeReference: {}", key, e.getMessage());
             return Optional.empty();
         }
     }

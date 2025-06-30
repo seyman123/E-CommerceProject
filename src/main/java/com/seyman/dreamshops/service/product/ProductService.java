@@ -15,6 +15,7 @@ import com.seyman.dreamshops.repository.OrderItemRepository;
 import com.seyman.dreamshops.requests.AddProductRequest;
 import com.seyman.dreamshops.requests.ProductUpdateRequest;
 import com.seyman.dreamshops.service.cache.CacheService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -426,10 +427,10 @@ public class ProductService implements IProductService {
         
         // Try cache first - cache the product list only, not the Page object
         try {
-            Optional<List> cachedValue = cacheService.get(cacheKey, List.class);
+            TypeReference<List<Product>> typeReference = new TypeReference<List<Product>>() {};
+            Optional<List<Product>> cachedValue = cacheService.get(cacheKey, typeReference);
             if (cachedValue.isPresent()) {
-                @SuppressWarnings("unchecked")
-                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+                List<Product> cachedProducts = cachedValue.get();
                 log.info("Cache HIT for getAllProducts paginated (optimized) - page: {}", pageable.getPageNumber());
                 
                 // Get total count from database (this is fast)
@@ -459,10 +460,10 @@ public class ProductService implements IProductService {
         
         // Try cache first - cache the product list only
         try {
-            Optional<List> cachedValue = cacheService.get(cacheKey, List.class);
+            TypeReference<List<Product>> typeReference = new TypeReference<List<Product>>() {};
+            Optional<List<Product>> cachedValue = cacheService.get(cacheKey, typeReference);
             if (cachedValue.isPresent()) {
-                @SuppressWarnings("unchecked")
-                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+                List<Product> cachedProducts = cachedValue.get();
                 log.info("Cache HIT for getProductsByCategory paginated (optimized) - category: {}, page: {}", category, pageable.getPageNumber());
                 
                 // Get total count for this category (fast query)
@@ -492,10 +493,10 @@ public class ProductService implements IProductService {
         
         // Try cache first - cache the product list only
         try {
-            Optional<List> cachedValue = cacheService.get(cacheKey, List.class);
+            TypeReference<List<Product>> typeReference = new TypeReference<List<Product>>() {};
+            Optional<List<Product>> cachedValue = cacheService.get(cacheKey, typeReference);
             if (cachedValue.isPresent()) {
-                @SuppressWarnings("unchecked")
-                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+                List<Product> cachedProducts = cachedValue.get();
                 log.info("Cache HIT for getProductsByNameContaining paginated (optimized) - search: {}, page: {}", search, pageable.getPageNumber());
                 
                 // For search, we need to count matching products (this is fast)
@@ -525,10 +526,10 @@ public class ProductService implements IProductService {
         
         // Try cache first - cache the product list only
         try {
-            Optional<List> cachedValue = cacheService.get(cacheKey, List.class);
+            TypeReference<List<Product>> typeReference = new TypeReference<List<Product>>() {};
+            Optional<List<Product>> cachedValue = cacheService.get(cacheKey, typeReference);
             if (cachedValue.isPresent()) {
-                @SuppressWarnings("unchecked")
-                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+                List<Product> cachedProducts = cachedValue.get();
                 log.info("Cache HIT for getProductsByCategoryAndNameContaining paginated (optimized) - category: {}, search: {}, page: {}", category, search, pageable.getPageNumber());
                 
                 // For category+search, count matching products (this is fast)
