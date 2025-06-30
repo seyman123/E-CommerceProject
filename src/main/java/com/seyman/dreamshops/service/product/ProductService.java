@@ -185,12 +185,11 @@ public class ProductService implements IProductService {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:all:optimized";
         
-        // Try to get from cache first (with proper casting)
+        // Try to get from cache first (with proper TypeReference for List<Product>)
         try {
-            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
-            if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+            Optional<List<Product>> cachedValue = cacheService.get(cacheKey, new TypeReference<List<Product>>(){});
+            if (cachedValue.isPresent()) {
+                List<Product> cachedProducts = cachedValue.get();
                 log.info("Cache HIT for getAllProducts (optimized)");
                 return cachedProducts;
             }
@@ -214,12 +213,11 @@ public class ProductService implements IProductService {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category:optimized:" + category;
         
-        // Try cache first (with proper casting)
+        // Try cache first (with proper TypeReference for List<Product>)
         try {
-            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
-            if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+            Optional<List<Product>> cachedValue = cacheService.get(cacheKey, new TypeReference<List<Product>>(){});
+            if (cachedValue.isPresent()) {
+                List<Product> cachedProducts = cachedValue.get();
                 log.info("Cache HIT for getProductsByCategory (optimized): {}", category);
                 return cachedProducts;
             }
@@ -258,12 +256,11 @@ public class ProductService implements IProductService {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:search:optimized:" + name.toLowerCase();
         
-        // Try cache first
+        // Try cache first (with proper TypeReference for List<Product>)
         try {
-            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
-            if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+            Optional<List<Product>> cachedValue = cacheService.get(cacheKey, new TypeReference<List<Product>>(){});
+            if (cachedValue.isPresent()) {
+                List<Product> cachedProducts = cachedValue.get();
                 log.info("Cache HIT for search (optimized): {}", name);
                 return cachedProducts;
             }
@@ -287,12 +284,11 @@ public class ProductService implements IProductService {
         // Use fallback to CacheService if Spring Cache is not available
         String cacheKey = "products:category_search:optimized:" + category.toLowerCase() + ":" + search.toLowerCase();
         
-        // Try cache first (with proper casting)
+        // Try cache first (with proper TypeReference for List<Product>)
         try {
-            Optional<Object> cachedValue = cacheService.get(cacheKey, Object.class);
-            if (cachedValue.isPresent() && cachedValue.get() instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Product> cachedProducts = (List<Product>) cachedValue.get();
+            Optional<List<Product>> cachedValue = cacheService.get(cacheKey, new TypeReference<List<Product>>(){});
+            if (cachedValue.isPresent()) {
+                List<Product> cachedProducts = cachedValue.get();
                 log.info("Cache HIT for category search (optimized): {} - {}", category, search);
                 return cachedProducts;
             }
