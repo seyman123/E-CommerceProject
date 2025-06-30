@@ -58,6 +58,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse> handleGenericException(Exception ex) {
+        // Skip logging for common browser requests that don't need to be logged
+        if (ex.getMessage() != null && ex.getMessage().contains("favicon.ico")) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse("Resource not found", null));
+        }
+        
         // Log the actual exception for debugging
         System.err.println("=== GLOBAL EXCEPTION HANDLER ===");
         System.err.println("Exception Type: " + ex.getClass().getSimpleName());

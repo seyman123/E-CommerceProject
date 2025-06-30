@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 @Transactional
-@Component 
+// @Component - Disabled to prevent automatic data initialization in production
 @RequiredArgsConstructor
 @Slf4j
 public class DataInitializer implements ApplicationListener<ApplicationReadyEvent> {

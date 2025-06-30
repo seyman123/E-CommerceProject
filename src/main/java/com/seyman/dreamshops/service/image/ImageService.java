@@ -34,6 +34,7 @@ public class ImageService implements IImageService {
     }
 
     @Override
+    @Transactional(timeout = 30)
     public void deleteImageById(Long id) {
         imageRepository.findById(id).ifPresentOrElse(imageRepository::delete, () -> {
             throw new ResourceNotFoundException("No image found with id: " + id);
@@ -41,6 +42,7 @@ public class ImageService implements IImageService {
     }
 
     @Override
+    @Transactional(timeout = 60)
     public List<ImageDto> saveImages(List<MultipartFile> files, Long productId) {
         Product product = productService.getProductById(productId);
 
@@ -80,6 +82,7 @@ public class ImageService implements IImageService {
     }
 
     @Override
+    @Transactional(timeout = 30)
     public void updateImage(MultipartFile file, Long imageId) {
         Image image = getImageById(imageId);
 
